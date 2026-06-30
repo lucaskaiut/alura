@@ -1,0 +1,90 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Customer;
+use App\Models\CustomerAddress;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class CustomerAddressController extends Controller
+{
+    public function index(Customer $customer): JsonResponse
+    {
+        return response()->json($customer->addresses);
+    }
+
+    public function store(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'type' => 'required|in:shipping,billing',
+            'street' => 'required|string|max:255',
+            'number' => 'required|string|max:20',
+            'complement' => 'nullable|string|max:255',
+            'neighborhood' => 'required|string|max:255',
+            'city' => 'required|string|max:255',
+            'state' => 'required|string|max:2',
+            'zip_code' => 'required|string|max:10',
+            'is_default' => 'boolean',
+        ]);
+
+        if ($request->boolean('is_default')) {
+            $customer->addresses()->where('type', $validated['type'])->update(['is_default' => false]);
+        }
+
+        $address = $customer->addresses()->create($validated);
+
+        return response()->json($address, 201);
+    }
+
+    public function show(Customer $customer, CustomerAddress $address): JsonResponse
+    {
+        if ($address->customer_id !== $customer->id) {
+            abort(404);
+        }
+
+        return response()->json($address);
+    }
+
+    public function update(Request $request, Customer $customer, CustomerAddress $address): JsonResponse
+    {
+        if ($address->customer_id !== $customer->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'type' => 'sometimes|in:shipping,billing',
+            'street' => 'sometimes|string|max:255',
+            'number' => 'sometimes|string|max:20',
+            'complement' => 'nullable|string|max:255',
+            'neighborhood' => 'sometimes|string|max:255',
+            'city' => 'sometimes|string|max:255',
+            'state' => 'sometimes|string|max:2',
+            'zip_code' => 'sometimes|string|max:10',
+            'is_default' => 'boolean',
+        ]);
+
+        if ($request->boolean('is_default')) {
+            $customer->addresses()
+                ->where('type', $validated['type'] ?? $address->type)
+                ->where('id', '!=', $address->id)
+                ->update(['is_default' => false]);
+        }
+
+        $address->update($validated);
+
+        return response()->json($address);
+    }
+
+    public function destroy(Customer $customer, CustomerAddress $address): JsonResponse
+    {
+        if ($address->customer_id !== $customer->id) {
+            abort(404);
+        }
+
+        $address->delete();
+
+        return response()->json(null, 204);
+    }
+}

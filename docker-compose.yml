@@ -1,0 +1,158 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: njord-nginx
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      - ./api:/var/www/api
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./api/storage:/var/www/api/storage
+    depends_on:
+      - app
+    networks:
+      - njord
+    restart: unless-stopped
+
+  app:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: njord-app
+    working_dir: /var/www/api
+    volumes:
+      - ./api:/var/www/api
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+    env_file:
+      - ./api/.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - njord
+    restart: unless-stopped
+
+  horizon:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: njord-horizon
+    working_dir: /var/www/api
+    command: php artisan horizon
+    volumes:
+      - ./api:/var/www/api
+    env_file:
+      - ./api/.env
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - njord
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: njord-scheduler
+    working_dir: /var/www/api
+    command: |
+      sh -c "while true; do php artisan schedule:run --verbose --no-interaction & sleep 60; done"
+    volumes:
+      - ./api:/var/www/api
+    env_file:
+      - ./api/.env
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - njord
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    container_name: njord-mysql
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-njord_secret}
+      MYSQL_DATABASE: ${DB_DATABASE:-njord}
+      MYSQL_USER: ${DB_USERNAME:-njord}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-njord_secret}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf
+    networks:
+      - njord
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: njord-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - njord
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: njord-admin
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./admin:/app
+      - /app/node_modules
+      - /app/dist
+    depends_on:
+      - app
+    networks:
+      - njord
+    restart: unless-stopped
+
+  site:
+    build:
+      context: ./site
+      dockerfile: Dockerfile
+    container_name: njord-site
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./site:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NEXT_PUBLIC_API_URL=http://nginx
+      - WATCHPACK_POLLING=true
+    depends_on:
+      - nginx
+    networks:
+      - njord
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  njord:
+    driver: bridge
