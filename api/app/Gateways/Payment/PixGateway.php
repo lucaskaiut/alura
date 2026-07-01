@@ -22,7 +22,8 @@ class PixGateway implements PaymentGateway
             'success' => true,
             'status' => 'pending',
             'transaction_id' => 'pix_' . uniqid(),
-            'qr_code' => 'https://pix.example.com/qr/' . uniqid(),
+            'qr_code' => 'https://www.avasam.com/wp-content/uploads/2019/10/qr-sample.png',
+            'pix_code' => '00020126580014br.gov.bcb.pix0136' . uniqid() . '5204000053039865405' . number_format((float) ($data['amount'] ?? 0), 2, '.', '') . '5802BR5925Njord Ecommerce6009SAO PAULO62070503***6304' . strtoupper(substr(md5(uniqid()), 0, 4)),
         ];
     }
 

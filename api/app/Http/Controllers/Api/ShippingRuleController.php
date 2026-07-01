@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Core\Shipping\ShippingCore;
 use App\Http\Controllers\Controller;
 use App\Models\ShippingRule;
 use Illuminate\Http\JsonResponse;
@@ -9,6 +10,11 @@ use Illuminate\Http\Request;
 
 class ShippingRuleController extends Controller
 {
+    public function gateways(ShippingCore $shipping): JsonResponse
+    {
+        return response()->json($shipping->getGatewayNames());
+    }
+
     public function index(): JsonResponse
     {
         $rules = ShippingRule::paginate(20);
@@ -25,6 +31,7 @@ class ShippingRuleController extends Controller
             'free_from' => 'nullable|numeric|min:0',
             'min_value' => 'nullable|numeric|min:0',
             'max_weight' => 'nullable|numeric|min:0',
+            'min_weight' => 'nullable|numeric|min:0',
             'zip_ranges' => 'nullable|array',
             'status' => 'boolean',
         ]);
@@ -48,6 +55,7 @@ class ShippingRuleController extends Controller
             'free_from' => 'nullable|numeric|min:0',
             'min_value' => 'nullable|numeric|min:0',
             'max_weight' => 'nullable|numeric|min:0',
+            'min_weight' => 'nullable|numeric|min:0',
             'zip_ranges' => 'nullable|array',
             'status' => 'boolean',
         ]);

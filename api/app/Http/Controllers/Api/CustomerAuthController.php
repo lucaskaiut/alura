@@ -40,9 +40,13 @@ class CustomerAuthController extends Controller
         if (!$customer) {
             return response()->json(['authenticated' => false], 401);
         }
+        $customer->load('addresses');
         return response()->json([
             'authenticated' => true,
-            'customer' => $customer->only(['id', 'name', 'email', 'phone', 'document']),
+            'customer' => array_merge(
+                $customer->only(['id', 'name', 'email', 'phone', 'document']),
+                ['addresses' => $customer->addresses->toArray()],
+            ),
         ]);
     }
 

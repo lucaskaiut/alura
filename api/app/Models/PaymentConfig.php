@@ -13,6 +13,7 @@ class PaymentConfig extends Model
         'tenant_id',
         'gateway',
         'method',
+        'label',
         'credentials',
         'status',
     ];

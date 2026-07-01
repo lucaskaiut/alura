@@ -19,6 +19,13 @@
   --color-text: #111827;
   --color-text-muted: #6b7280;
   --color-danger-500: #ef4444;
+  --color-success-50: #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-200: #bbf7d0;
+  --color-success-400: #4ade80;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
 }
 
 * {

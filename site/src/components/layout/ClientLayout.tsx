@@ -3,6 +3,7 @@
 import { ToastProvider } from '@/components/ui/Toast';
 import CartDrawerWrapper from '@/components/cart/CartDrawerWrapper';
 import SearchBar from '@/components/ui/SearchBar';
+import StoreNav from '@/components/layout/StoreNav';
 import Link from 'next/link';
 import { type ReactNode } from 'react';
 
@@ -14,6 +15,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
           <Link href="/" className="text-xl font-bold text-primary-700">Njord</Link>
           <div className="flex flex-1 items-center gap-2">
             <SearchBar />
+            <StoreNav />
           </div>
           <CartDrawerWrapper />
         </div>

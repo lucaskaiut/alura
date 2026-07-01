@@ -14,6 +14,9 @@ class OrderStatus extends Model
         'name',
         'slug',
         'color',
+        'variant',
+        'payment_status',
+        'button_label',
         'is_default',
     ];
 
@@ -22,5 +25,10 @@ class OrderStatus extends Model
         return [
             'is_default' => 'boolean',
         ];
+    }
+
+    public function outgoingTransitions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(OrderStatusTransition::class, 'from_status_id');
     }
 }

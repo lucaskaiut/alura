@@ -231,9 +231,14 @@ class ProductController extends Controller
     }
 
     /** Public store: list products */
-    public function storeIndex(Request $request): JsonResponse
+     public function storeIndex(Request $request): JsonResponse
     {
         $query = Product::where('status', true)->with('media');
+
+        if ($request->filled('ids')) {
+            $ids = array_map('intval', explode(',', $request->input('ids')));
+            $query->whereIn('id', $ids);
+        }
 
         if ($request->filled('search')) {
             $search = $request->input('search');

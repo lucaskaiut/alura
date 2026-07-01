@@ -7,13 +7,14 @@ import PageContent from '@/components/renderers/PageContent';
 import ProductGrid from '@/components/ui/ProductGrid';
 
 interface Props {
-  params: Promise<{ slug: string[] }>;
+  params: Promise<{ slug?: string[] }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const path = '/' + slug.join('/');
-  const route = await resolveRoute(path);
+  const path = '/' + (slug ?? []).join('/');
+  const resolvedPath = path === '/' ? '/home' : path;
+  const route = await resolveRoute(resolvedPath);
 
   if (route.type === 'not_found') {
     return { title: 'Página não encontrada - Njord' };
@@ -27,8 +28,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CatchAllPage({ params }: Props) {
   const { slug } = await params;
-  const path = '/' + slug.join('/');
-  const route = await resolveRoute(path);
+  const path = '/' + (slug ?? []).join('/');
+  const resolvedPath = path === '/' ? '/home' : path;
+  const route = await resolveRoute(resolvedPath);
 
   switch (route.type) {
     case 'home': {
@@ -78,11 +80,18 @@ export default async function CatchAllPage({ params }: Props) {
       return <ProductDetail product={(productData || route.data) as { id: string; name: string; price: string | number; sku?: string; media?: { id: number; path: string; mime_type: string }[]; full_desc?: string; short_desc?: string; description?: string; variants?: { id: string; name: string; values: string[] }[] }} />;
     }
 
-    case 'category':
-      return <CategoryPage category={route.data as { id: string; name: string; description?: string; breadcrumbs?: { name: string; path: string }[]; products?: unknown[] }} />;
+    case 'category': {
+      const catData = route.data as { category?: Record<string, unknown>; breadcrumb?: { name: string; slug: string }[] };
+      const cat = (catData.category || route.data) as Record<string, unknown>;
+      const breadcrumbs = (catData.breadcrumb || (cat as Record<string, unknown>).breadcrumbs as { name: string; slug: string }[] || [])
+        .map((b: { name: string; slug: string }) => ({ name: b.name, path: '/' + b.slug }));
+      return <CategoryPage category={{ ...cat, breadcrumbs } as { id: string; name: string; description?: string; breadcrumbs?: { name: string; path: string }[]; products?: unknown[] }} />;
+    }
 
-    case 'page':
-      return <PageContent page={route.data as { title: string; content?: string; body?: string; sections?: { id: string; type: string; content: string }[] }} />;
+    case 'page': {
+      const pageData = (route.data as { page?: Record<string, unknown> }).page || route.data;
+      return <PageContent page={pageData as { title: string; content?: string; body?: string; sections?: { id: string; type: string; content: string }[] }} />;
+    }
 
     case 'not_found':
     default:

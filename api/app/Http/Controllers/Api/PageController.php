@@ -6,9 +6,21 @@ use App\Http\Controllers\Controller;
 use App\Models\Page;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 
 class PageController extends Controller
 {
+    private function revalidateSite(string $slug): void
+    {
+        $siteUrl = config('app.site_url', 'http://localhost:3000');
+        $token = env('REVALIDATE_TOKEN', 'njord-revalidate-secret');
+        try {
+            Http::withHeaders(['x-revalidate-token' => $token])
+                ->post("{$siteUrl}/api/revalidate", ['path' => "/{$slug}"]);
+        } catch (\Throwable) {
+            // Silently fail — revalidation is optional
+        }
+    }
     public function index(): JsonResponse
     {
         $pages = Page::paginate(20);
@@ -32,6 +44,8 @@ class PageController extends Controller
 
         $page = Page::create($validated);
 
+        $this->revalidateSite($page->slug);
+
         return response()->json($page, 201);
     }
 
@@ -53,6 +67,8 @@ class PageController extends Controller
         ]);
 
         $page->update($validated);
+
+        $this->revalidateSite($page->slug);
 
         return response()->json($page);
     }

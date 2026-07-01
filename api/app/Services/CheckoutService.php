@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Core\Payment\PaymentCore;
 use App\Core\Payment\DTOs\PaymentRequest;
 use App\Core\Shipping\ShippingCore;
+use App\Core\Shipping\DTOs\ShippingRequest;
 use App\Models\Cart;
 use App\Models\Order;
 use App\Models\Payment;
@@ -16,6 +17,7 @@ class CheckoutService
     public function __construct(
         private PaymentCore $payment,
         private ShippingCore $shipping,
+        private PaymentSyncService $paymentSync,
     ) {}
 
     public function getShippingOptions(Cart $cart, string $cep): array
@@ -28,19 +30,24 @@ class CheckoutService
             'weight' => (float) ($i->product->weight ?? 0.5),
         ])->toArray();
 
-        $total = $cart->items->sum(fn ($i) => (float) $i->price_at_time * $i->quantity);
+        $total = (float) $cart->items->sum(fn ($i) => (float) $i->price_at_time * $i->quantity);
 
-        return collect($this->shipping->calculateAll([
-            'cep' => $cep,
-            'items' => $items,
-            'total' => $total,
-        ]))->map(fn ($o) => [
-            'service_code' => $o->serviceCode,
-            'name' => $o->name,
-            'price' => $o->price,
-            'estimated_days' => $o->deliveryDays,
-            'gateway' => $o->gateway,
-        ])->values()->all();
+        $request = new ShippingRequest(
+            cep: $cep,
+            items: $items,
+            total: $total,
+        );
+
+        return collect($this->shipping->calculateAll($request))
+            ->map(fn ($o) => [
+                'service_code' => $o->serviceCode,
+                'name' => $o->name,
+                'price' => $o->price,
+                'estimated_days' => $o->deliveryDays,
+                'gateway' => $o->gateway,
+            ])
+            ->values()
+            ->all();
     }
 
     public function getPaymentMethods(): array
@@ -49,9 +56,9 @@ class CheckoutService
             ->get()
             ->map(fn ($config) => [
                 'gateway' => $config->gateway,
-                'method' => $config->method,
-                'type' => $config->gateway, // 'pix', 'credit_card', 'boleto' — usado pelo frontend para decidir o formulário
-                'label' => $config->method,
+                'method' => strtolower($config->method),         // identificador interno (pix, credit_card, boleto)
+                'type' => strtolower($config->method),           // tipo do formulário (pix, credit_card, boleto)
+                'label' => $config->label ?: ucfirst($config->method), // nome de exibição
                 'description' => $config->credentials['description'] ?? '',
             ])
             ->values()
@@ -104,6 +111,9 @@ class CheckoutService
                 'total' => $total,
                 'shipping_address' => $data['address'] ?? null,
                 'shipping_method' => $data['shipping_method'] ?? null,
+                'status_id' => \App\Models\OrderStatus::where('payment_status', 'pending')->value('id')
+                    ?? \App\Models\OrderStatus::where('is_default', true)->value('id')
+                    ?? \App\Models\OrderStatus::first()?->id,
             ]);
 
             foreach ($cart->items as $item) {
@@ -117,6 +127,16 @@ class CheckoutService
                 ]);
             }
 
+            // Build payment-specific metadata
+            $paymentMetadata = [];
+            if (strtolower($data['payment_method'] ?? '') === 'credit_card') {
+                $paymentMetadata['card_number'] = $data['card_number'] ?? '';
+                $paymentMetadata['card_name'] = $data['card_name'] ?? '';
+                $paymentMetadata['card_expiry'] = $data['card_expiry'] ?? '';
+                $paymentMetadata['card_cvv'] = $data['card_cvv'] ?? '';
+                $paymentMetadata['installments'] = $data['installments'] ?? 1;
+            }
+
             // Process payment via PaymentCore
             $paymentRequest = new PaymentRequest(
                 gateway: $data['payment_gateway'] ?? 'pix',
@@ -124,9 +144,16 @@ class CheckoutService
                 orderId: $order->id,
                 amount: (float) $total,
                 customer: $data['customer'] ?? [],
+                metadata: $paymentMetadata,
             );
 
             $result = $this->payment->charge($paymentRequest);
+
+            if (!$result->success) {
+                throw ValidationException::withMessages([
+                    'payment' => $result->message ?? 'Falha ao processar pagamento.',
+                ]);
+            }
 
             $payment = Payment::create([
                 'order_id' => $order->id,
@@ -137,11 +164,18 @@ class CheckoutService
                 'status' => $result->status,
                 'metadata' => [
                     'qr_code' => $result->qrCode,
+                    'pix_code' => $result->pixCode,
                     'boleto_url' => $result->boletoUrl,
+                    'boleto_digitable_line' => $result->boletoDigitableLine,
+                    'payment_data' => $paymentMetadata,
                 ],
             ]);
 
             $cart->items()->delete();
+
+            // Sync order status based on payment result
+            $order->load('payments');
+            $this->paymentSync->syncOrderStatus($order);
 
             return [
                 'order' => $order->load('items'),
@@ -149,7 +183,9 @@ class CheckoutService
                 'payment_data' => [
                     'status' => $result->status,
                     'qr_code' => $result->qrCode,
+                    'pix_code' => $result->pixCode,
                     'boleto_url' => $result->boletoUrl,
+                    'boleto_digitable_line' => $result->boletoDigitableLine,
                 ],
             ];
         });

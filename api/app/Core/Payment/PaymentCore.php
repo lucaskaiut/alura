@@ -28,7 +28,8 @@ class PaymentCore
             );
         }
 
-        if (! in_array($request->method, $gateway->supportedMethods())) {
+        $supportedMethods = array_map('strtolower', $gateway->supportedMethods());
+        if (! in_array(strtolower($request->method), $supportedMethods)) {
             return new PaymentResponse(
                 success: false,
                 status: 'failed',
@@ -50,7 +51,9 @@ class PaymentCore
             status: $result['status'] ?? 'pending',
             transactionId: $result['transaction_id'] ?? '',
             qrCode: $result['qr_code'] ?? null,
+            pixCode: $result['pix_code'] ?? null,
             boletoUrl: $result['boleto_url'] ?? null,
+            boletoDigitableLine: $result['boleto_digitable_line'] ?? null,
             redirectUrl: $result['redirect_url'] ?? null,
             metadata: $result['metadata'] ?? [],
             message: $result['message'] ?? null,

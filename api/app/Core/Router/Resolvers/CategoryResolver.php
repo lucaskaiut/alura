@@ -36,6 +36,7 @@ class CategoryResolver implements RouterResolver
         $category = Category::where('slug', $lastSlug)->where('status', true)->first();
 
         if ($category) {
+            $category->load(['products' => fn ($q) => $q->where('status', true)->with('media')]);
             $breadcrumb = [];
             $current = $category;
 

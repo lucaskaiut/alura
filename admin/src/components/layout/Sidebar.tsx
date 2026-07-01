@@ -4,6 +4,7 @@ import {
   Package,
   Tags,
   Layers,
+  Menu,
   ShoppingCart,
   Percent,
   Users,
@@ -14,6 +15,8 @@ import {
   ChevronRight,
   BoxesIcon,
   Building2,
+  GitBranch,
+  Truck,
   LogOut,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -48,6 +51,8 @@ const navGroups: NavGroup[] = [
     title: "Vendas",
     items: [
       { label: "Pedidos", path: "/orders", icon: ShoppingCart },
+      { label: "Status", path: "/order-statuses", icon: GitBranch },
+      { label: "Regras de Frete", path: "/shipping-rules", icon: Truck },
       { label: "Cupons", path: "/coupons", icon: Percent },
       { label: "Clientes", path: "/customers", icon: Users },
     ],
@@ -56,6 +61,7 @@ const navGroups: NavGroup[] = [
     title: "Conteúdo",
     items: [
       { label: "Páginas", path: "/pages", icon: FileText },
+      { label: "Menu", path: "/menu", icon: Menu },
       { label: "Mídias", path: "/media", icon: ImageIcon },
     ],
   },
@@ -120,7 +126,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMob
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-6">
+      <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-6 sidebar-scroll">
         {navGroups.map((group) => (
           <div key={group.title}>
             {!collapsed && (

@@ -112,6 +112,16 @@ services:
       timeout: 3s
       retries: 5
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: njord-mailhog
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
+    networks:
+      - njord
+    restart: unless-stopped
+
   admin:
     build:
       context: ./admin

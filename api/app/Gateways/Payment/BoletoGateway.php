@@ -22,7 +22,8 @@ class BoletoGateway implements PaymentGateway
             'success' => true,
             'status' => 'pending',
             'transaction_id' => 'boleto_' . uniqid(),
-            'boleto_url' => 'https://boleto.example.com/' . uniqid(),
+            'boleto_url' => 'https://pdfobject.com/pdf/sample.pdf',
+            'boleto_digitable_line' => '34191.79001 01043.510047 91020.150008 1 ' . rand(1000, 9999) . '0000' . number_format((float) ($data['amount'] ?? 0), 2, '', ''),
         ];
     }
 

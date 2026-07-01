@@ -25,6 +25,7 @@ class PaymentConfigController extends Controller
         $validated = $request->validate([
             'gateway' => 'required|string|max:255',
             'method' => 'required|in:pix,credit_card,boleto',
+            'label' => 'nullable|string|max:255',
             'credentials' => 'nullable|array',
             'status' => 'boolean',
         ]);
@@ -44,6 +45,7 @@ class PaymentConfigController extends Controller
         $validated = $request->validate([
             'gateway' => 'sometimes|string|max:255',
             'method' => 'sometimes|in:pix,credit_card,boleto',
+            'label' => 'nullable|string|max:255',
             'credentials' => 'nullable|array',
             'status' => 'boolean',
         ]);

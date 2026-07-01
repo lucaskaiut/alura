@@ -12,7 +12,9 @@ class OrderStatusController extends Controller
 {
     public function index(): JsonResponse
     {
-        $statuses = OrderStatus::paginate(20);
+        $statuses = OrderStatus::with('outgoingTransitions.toStatus')
+            ->orderBy('id')
+            ->get();
 
         return response()->json($statuses);
     }
@@ -23,8 +25,15 @@ class OrderStatusController extends Controller
             'name' => 'required|string|max:255',
             'slug' => 'required|string|max:255',
             'color' => 'nullable|string|max:20',
+            'variant' => 'nullable|in:success,warning,danger,info,neutral',
+            'payment_status' => 'nullable|in:pending,paid,failed,refunded',
+            'button_label' => 'nullable|string|max:50',
             'is_default' => 'boolean',
         ]);
+
+        if ($request->boolean('is_default')) {
+            OrderStatus::where('is_default', true)->update(['is_default' => false]);
+        }
 
         $status = OrderStatus::create($validated);
 
@@ -33,6 +42,8 @@ class OrderStatusController extends Controller
 
     public function show(OrderStatus $orderStatus): JsonResponse
     {
+        $orderStatus->load('outgoingTransitions.toStatus');
+
         return response()->json($orderStatus);
     }
 
@@ -42,8 +53,15 @@ class OrderStatusController extends Controller
             'name' => 'sometimes|string|max:255',
             'slug' => 'sometimes|string|max:255',
             'color' => 'nullable|string|max:20',
+            'variant' => 'nullable|in:success,warning,danger,info,neutral',
+            'payment_status' => 'nullable|in:pending,paid,failed,refunded',
+            'button_label' => 'nullable|string|max:50',
             'is_default' => 'boolean',
         ]);
+
+        if ($request->boolean('is_default')) {
+            OrderStatus::where('is_default', true)->where('id', '!=', $orderStatus->id)->update(['is_default' => false]);
+        }
 
         $orderStatus->update($validated);
 
@@ -62,6 +80,13 @@ class OrderStatusController extends Controller
         $transitions = OrderStatusTransition::where('from_status_id', $orderStatus->id)
             ->with('toStatus')
             ->get();
+
+        return response()->json($transitions);
+    }
+
+    public function allTransitions(): JsonResponse
+    {
+        $transitions = OrderStatusTransition::with(['fromStatus', 'toStatus'])->get();
 
         return response()->json($transitions);
     }

@@ -13,10 +13,12 @@ use App\Http\Controllers\Api\CustomerAuthController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\EmailTemplateController;
 use App\Http\Controllers\Api\MediaController;
+use App\Http\Controllers\Api\MenuItemController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\OrderStatusController;
 use App\Http\Controllers\Api\PageController;
 use App\Http\Controllers\Api\PaymentConfigController;
+use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\RouterController;
 use App\Http\Controllers\Api\ShippingRuleController;
@@ -60,13 +62,18 @@ Route::middleware(['tenant', 'throttle:300,1'])->group(function () {
     Route::post('/checkout', [CheckoutController::class, 'store']);
 
     // Webhooks
-    Route::post('/webhooks/payment/{gateway}', fn (string $gateway) =>
-        response()->json(['message' => "Webhook received for {$gateway}"])
-    );
+    Route::post('/webhooks/payment/{gateway}', [PaymentWebhookController::class, 'handle']);
 
     // Public store: products & categories (no auth, tenant via domain)
     Route::get('/store/products', [ProductController::class, 'storeIndex']);
     Route::get('/store/products/{product:slug}', [ProductController::class, 'storeShow']);
+
+    // Store settings (public, for navbar menu)
+    Route::get('/store/settings', fn () => response()->json([
+        'menu' => \App\Models\MenuItem::toTree(
+            \App\Models\MenuItem::where('active', true)->orderBy('position')->get()
+        ),
+    ]));
 
     // Customer auth — stricter rate limits
     Route::middleware('throttle:60,1')->post('/store/login', [CustomerAuthController::class, 'login']);
@@ -76,6 +83,13 @@ Route::middleware(['tenant', 'throttle:300,1'])->group(function () {
 // Customer protected routes (auth via cookie → Bearer)
 Route::middleware(['auth:sanctum', 'throttle:200,1'])->group(function () {
     Route::get('/store/me', [CustomerAuthController::class, 'me']);
+
+    // Customer address management
+    Route::get('/store/addresses', [CustomerAddressController::class, 'myAddresses']);
+    Route::post('/store/addresses', [CustomerAddressController::class, 'myStore']);
+    Route::put('/store/addresses/{address}', [CustomerAddressController::class, 'myUpdate']);
+    Route::delete('/store/addresses/{address}', [CustomerAddressController::class, 'myDestroy']);
+    Route::post('/store/addresses/{address}/default', [CustomerAddressController::class, 'setDefault']);
 });
 
 // =============================================
@@ -123,13 +137,18 @@ Route::middleware(['auth:sanctum', 'verify.tenant', 'tenant', 'throttle:300,1'])
     Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus']);
 
     Route::apiResource('order-statuses', OrderStatusController::class);
+    Route::get('/order-statuses/transitions/all', [OrderStatusController::class, 'allTransitions']);
     Route::get('/order-statuses/{orderStatus}/transitions', [OrderStatusController::class, 'transitions']);
     Route::post('/order-statuses/transitions', [OrderStatusController::class, 'storeTransition']);
     Route::delete('/order-statuses/transitions/{transition}', [OrderStatusController::class, 'destroyTransition']);
 
+    Route::post('menu-items/reorder', [MenuItemController::class, 'reorder']);
+    Route::apiResource('menu-items', MenuItemController::class);
+
     Route::apiResource('coupons', CouponController::class);
     Route::apiResource('pages', PageController::class);
     Route::apiResource('payment-configs', PaymentConfigController::class);
+    Route::get('shipping-rules/gateways', [ShippingRuleController::class, 'gateways']);
     Route::apiResource('shipping-rules', ShippingRuleController::class);
     Route::apiResource('email-templates', EmailTemplateController::class);
 });

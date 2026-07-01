@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\MenuItem;
 use App\Models\Tenant;
 use App\Models\TenantSetting;
 use Illuminate\Http\JsonResponse;
@@ -77,8 +78,12 @@ class TenantController extends Controller
     public function settings(Tenant $tenant): JsonResponse
     {
         $settings = $tenant->settings()->pluck('value', 'key');
+        $menu = MenuItem::toTree(MenuItem::where('active', true)->orderBy('position')->get());
 
-        return response()->json($settings);
+        return response()->json([
+            'settings' => $settings,
+            'menu' => $menu,
+        ]);
     }
 
     public function updateSettings(Request $request, Tenant $tenant): JsonResponse

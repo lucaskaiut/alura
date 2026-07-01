@@ -1,27 +1,48 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Eye } from "lucide-react";
 import api from "../lib/api";
 import DataTable, { type Column } from "../components/ui/DataTable";
-import Modal from "../components/ui/Modal";
 import Badge from "../components/ui/Badge";
 
+interface OrderStatus {
+  id: number;
+  name: string;
+  slug: string;
+  color: string | null;
+  variant: string | null;
+  button_label?: string;
+}
+
+interface OrderCustomer {
+  id: number;
+  name: string;
+  email: string;
+}
+
 interface OrderItem {
-  product_name: string;
+  name_snapshot: string;
   quantity: number;
-  price: string;
+  price: number;
 }
 
 interface Order {
   id: number;
   number: string;
-  customer_name: string;
-  customer_email: string;
+  customer: OrderCustomer | null;
   total: string;
   status_id: number | null;
-  status: string;
+  status: OrderStatus | null;
   items: OrderItem[];
   created_at: string;
+}
+
+interface Transition {
+  id: number;
+  from_status_id: number;
+  to_status_id: number;
+  to_status?: OrderStatus;
 }
 
 function formatCurrency(value: string): string {
@@ -42,22 +63,9 @@ function formatDate(dateStr: string): string {
   }).format(new Date(dateStr));
 }
 
-const statusMap: Record<string, { label: string; variant: "warning" | "info" | "success" | "danger" | "neutral" }> = {
-  pending: { label: "Pendente", variant: "warning" },
-  processing: { label: "Processando", variant: "info" },
-  completed: { label: "Concluído", variant: "success" },
-  cancelled: { label: "Cancelado", variant: "danger" },
-  refunded: { label: "Reembolsado", variant: "neutral" },
-};
-
-const nextStatus: Record<string, string> = {
-  pending: "processing",
-  processing: "completed",
-};
-
 export default function OrdersPage() {
   const queryClient = useQueryClient();
-  const [viewOrder, setViewOrder] = useState<Order | null>(null);
+  const navigate = useNavigate();
   const [statusOrderId, setStatusOrderId] = useState<number | null>(null);
 
   const { data: apiData, isLoading } = useQuery({
@@ -70,9 +78,17 @@ export default function OrdersPage() {
 
   const orders: Order[] = apiData?.data ?? [];
 
+  const { data: transitions } = useQuery({
+    queryKey: ["order-status-transitions"],
+    queryFn: async () => {
+      const response = await api.get("/order-statuses/transitions/all");
+      return (response.data ?? []) as Transition[];
+    },
+  });
+
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: number; status: string }) => {
-      const response = await api.patch(`/orders/${id}/status`, { status });
+    mutationFn: async ({ id, statusId }: { id: number; statusId: number }) => {
+      const response = await api.put(`/orders/${id}/status`, { status_id: statusId });
       return response.data;
     },
     onSuccess: () => {
@@ -80,6 +96,19 @@ export default function OrdersPage() {
       setStatusOrderId(null);
     },
   });
+
+  const getAllowedNextStatuses = (currentStatusId: number | null): OrderStatus[] => {
+    if (!currentStatusId || !transitions) return [];
+    return transitions
+      .filter(t => t.from_status_id === currentStatusId)
+      .map(t => t.to_status!)
+      .filter(Boolean);
+  };
+
+  const getCancelledStatus = (): OrderStatus | undefined => {
+    return orders.flatMap(o => (o.status ? [o.status] : [])).find(s => s.slug === "cancelled")
+      || undefined;
+  };
 
   const columns: Column<Order>[] = [
     {
@@ -90,7 +119,14 @@ export default function OrdersPage() {
         <span className="font-mono font-medium text-primary-600">#{item.number}</span>
       ),
     },
-    { key: "customer_name", label: "Cliente", priority: 2 },
+    {
+      key: "customer",
+      label: "Cliente",
+      priority: 2,
+      render: (item) => (
+        <span>{item.customer?.name || "—"}</span>
+      ),
+    },
     {
       key: "total",
       label: "Total",
@@ -102,32 +138,40 @@ export default function OrdersPage() {
       label: "Status",
       priority: 1,
       render: (item) => {
-        const s = statusMap[item.status] || { label: item.status, variant: "neutral" as const };
-        const next = nextStatus[item.status];
+        const st = item.status;
+        const variant = (st?.variant as BadgePropsVariant) || "neutral";
+        const allowed = getAllowedNextStatuses(item.status_id);
+        const cancelledStatus = getCancelledStatus();
+        const showDropdown = (allowed.length > 0 || cancelledStatus) && st;
+
         return (
           <div className="relative inline-block">
             <Badge
-              variant={s.variant}
-              onClick={next ? () => setStatusOrderId(item.id) : undefined}
+              variant={variant}
+              onClick={showDropdown ? () => setStatusOrderId(item.id) : undefined}
             >
-              {s.label}
+              {st?.name ?? "—"}
             </Badge>
             {statusOrderId === item.id && (
-              <div className="absolute left-0 top-full mt-1 z-30 bg-surface border border-border rounded-lg shadow-lg p-1 animate-fade-in min-w-[140px]">
-                {next && (
+              <div className="absolute left-0 top-full mt-1 z-30 bg-surface border border-border rounded-lg shadow-lg p-1 animate-fade-in min-w-[160px]">
+                {allowed.map(next => (
                   <button
-                    onClick={() => updateStatusMutation.mutate({ id: item.id, status: next })}
+                    key={next.id}
+                    onClick={() => updateStatusMutation.mutate({ id: item.id, statusId: next.id })}
                     className="block w-full text-left px-3 py-2 text-sm hover:bg-bg rounded-md transition-colors"
+                    style={{ color: next.color || undefined }}
                   >
-                    Avançar para {statusMap[next].label}
+                    Avançar para {next.button_label || next.name}
+                  </button>
+                ))}
+                {cancelledStatus && item.status_id !== cancelledStatus.id && (
+                  <button
+                    onClick={() => updateStatusMutation.mutate({ id: item.id, statusId: cancelledStatus.id })}
+                    className="block w-full text-left px-3 py-2 text-sm text-danger-500 hover:bg-danger-500/5 rounded-md transition-colors"
+                  >
+                    Cancelar
                   </button>
                 )}
-                <button
-                  onClick={() => updateStatusMutation.mutate({ id: item.id, status: "cancelled" })}
-                  className="block w-full text-left px-3 py-2 text-sm text-danger-500 hover:bg-danger-500/5 rounded-md transition-colors"
-                >
-                  Cancelar
-                </button>
                 <button
                   onClick={() => setStatusOrderId(null)}
                   className="block w-full text-left px-3 py-2 text-sm text-text-muted hover:bg-bg rounded-md transition-colors"
@@ -155,7 +199,7 @@ export default function OrdersPage() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setViewOrder(item);
+              navigate(`/orders/${item.id}`);
             }}
             className="p-1.5 rounded-lg hover:bg-primary-50 text-text-muted hover:text-primary-600 transition-colors"
             title="Visualizar"
@@ -175,49 +219,8 @@ export default function OrdersPage() {
       </div>
 
       <DataTable columns={columns} data={orders} isLoading={isLoading} />
-
-      <Modal open={!!viewOrder} onClose={() => setViewOrder(null)} title={`Pedido #${viewOrder?.number}`} size="lg">
-        {viewOrder && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-text-muted mb-1">Cliente</p>
-                <p className="text-sm font-medium text-text">{viewOrder.customer_name}</p>
-                <p className="text-xs text-text-muted">{viewOrder.customer_email}</p>
-              </div>
-              <div>
-                <p className="text-xs text-text-muted mb-1">Status</p>
-                <Badge variant={statusMap[viewOrder.status]?.variant || "neutral"}>
-                  {statusMap[viewOrder.status]?.label || viewOrder.status}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-xs text-text-muted mb-1">Total</p>
-                <p className="text-sm font-semibold text-text">{formatCurrency(viewOrder.total)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-text-muted mb-1">Data</p>
-                <p className="text-sm text-text">{formatDate(viewOrder.created_at)}</p>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Itens</p>
-              <div className="border border-border rounded-lg divide-y divide-border">
-                {viewOrder.items.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-text">{item.product_name}</p>
-                      <p className="text-xs text-text-muted">Qtd: {item.quantity}</p>
-                    </div>
-                    <p className="text-sm font-medium text-text">{formatCurrency(item.price)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }
+
+type BadgePropsVariant = "success" | "warning" | "danger" | "info" | "neutral";

@@ -17,6 +17,7 @@ class ShippingRule extends Model
         'free_from',
         'min_value',
         'max_weight',
+        'min_weight',
         'zip_ranges',
         'status',
     ];
@@ -27,6 +28,7 @@ class ShippingRule extends Model
             'free_from' => 'decimal:2',
             'min_value' => 'decimal:2',
             'max_weight' => 'decimal:3',
+            'min_weight' => 'decimal:3',
             'zip_ranges' => 'array',
             'status' => 'boolean',
         ];

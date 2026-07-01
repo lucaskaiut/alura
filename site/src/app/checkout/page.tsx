@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, Eye, EyeOff } from 'lucide-react';
+import { Check, EyeOff } from 'lucide-react';
 
 const steps = [
   { id: 1, name: 'Identificação' },
@@ -15,8 +15,14 @@ function getSessionId() {
   return id || '';
 }
 
+interface CustomerInfo {
+  id: number;
+  name: string;
+  email: string;
+}
+
 // ─── Step 1: Login/Register ───
-function IdentificationStep({ onNext }: { onNext: () => void }) {
+function IdentificationStep({ onNext }: { onNext: (customer: CustomerInfo) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,7 +42,7 @@ function IdentificationStep({ onNext }: { onNext: () => void }) {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setLoading(true);
-    try { await apiPost('/api/auth/login', { email: loginEmail, password: loginPw }); onNext(); }
+    try { const data = await apiPost('/api/auth/login', { email: loginEmail, password: loginPw }); onNext(data.customer); }
     catch (err) { setError(err instanceof Error ? err.message : 'Erro'); }
     finally { setLoading(false); }
   };
@@ -46,7 +52,7 @@ function IdentificationStep({ onNext }: { onNext: () => void }) {
     if (regPw !== regPw2) { setError('Senhas não conferem.'); return; }
     if (regPw.length < 6) { setError('Mínimo 6 caracteres.'); return; }
     setLoading(true);
-    try { await apiPost('/api/auth/register', { name: regName, email: regEmail, password: regPw, password_confirmation: regPw2 }); onNext(); }
+    try { const data = await apiPost('/api/auth/register', { name: regName, email: regEmail, password: regPw, password_confirmation: regPw2 }); onNext(data.customer); }
     catch (err) { setError(err instanceof Error ? err.message : 'Erro'); }
     finally { setLoading(false); }
   };
@@ -78,13 +84,56 @@ function IdentificationStep({ onNext }: { onNext: () => void }) {
   );
 }
 
+interface SavedAddress {
+  id: number;
+  label: string | null;
+  type: string;
+  street: string;
+  number: string;
+  complement: string | null;
+  neighborhood: string;
+  city: string;
+  state: string;
+  country: string;
+  zip_code: string;
+  is_default: boolean;
+}
+
 // ─── Step 2: Address ───
-function AddressStep({ onNext, onBack }: { onNext: (a: Record<string, string>) => void; onBack: () => void }) {
+function AddressStep({ customer, onNext, onBack }: {
+  customer: CustomerInfo | null;
+  onNext: (address: Record<string, string>, addressId: number | null) => void;
+  onBack: () => void;
+}) {
+  const [addresses, setAddresses] = useState<SavedAddress[] | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [showForm, setShowForm] = useState(!customer);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [formLabel, setFormLabel] = useState('');
   const [cep, setCep] = useState(''); const [loadingCep, setLoadingCep] = useState(false); const [cepError, setCepError] = useState('');
   const [street, setStreet] = useState(''); const [number, setNumber] = useState(''); const [complement, setComplement] = useState('');
   const [neighborhood, setNeighborhood] = useState(''); const [city, setCity] = useState(''); const [state, setState] = useState('');
   const ic = "w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500";
   const lc = "bg-bg text-text-muted";
+
+  useEffect(() => {
+    if (!customer) return;
+    let cancelled = false;
+    fetch('/api/store/addresses')
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        const list: SavedAddress[] = data || [];
+        setAddresses(list);
+        const def = list.find(a => a.is_default);
+        if (def) setSelectedId(def.id);
+        else if (list.length === 0) setShowForm(true);
+      })
+      .catch(() => { if (!cancelled) setAddresses([]); });
+    return () => { cancelled = true; };
+  }, [customer]);
 
   const lookupCep = async (v: string) => {
     const clean = v.replace(/\D/g, ''); if (clean.length !== 8) return;
@@ -97,19 +146,194 @@ function AddressStep({ onNext, onBack }: { onNext: (a: Record<string, string>) =
     finally { setLoadingCep(false); }
   };
 
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onNext({ zip_code: cep.replace(/\D/g, ''), street, number, complement, neighborhood, city, state }); };
+  const resetForm = () => {
+    setFormLabel(''); setCep(''); setStreet(''); setNumber(''); setComplement('');
+    setNeighborhood(''); setCity(''); setState(''); setCepError(''); setError('');
+  };
+
+  const fillForm = (addr: SavedAddress) => {
+    setFormLabel(addr.label || '');
+    setCep(addr.zip_code);
+    setStreet(addr.street);
+    setNumber(addr.number);
+    setComplement(addr.complement || '');
+    setNeighborhood(addr.neighborhood);
+    setCity(addr.city);
+    setState(addr.state);
+  };
+
+  const handleSaveAddress = async () => {
+    if (!street.trim() || !number.trim() || !neighborhood.trim() || !city.trim() || !state.trim() || !cep.trim()) {
+      setError('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    if (!customer) return;
+
+    setSaving(true); setError('');
+    const body = {
+      type: 'shipping',
+      label: formLabel.trim() || null,
+      zip_code: cep.replace(/\D/g, ''),
+      street: street.trim(),
+      number: number.trim(),
+      complement: complement.trim() || '',
+      neighborhood: neighborhood.trim(),
+      city: city.trim(),
+      state: state.trim().toUpperCase(),
+    };
+
+    try {
+      let addr: SavedAddress;
+      if (editingId) {
+        const res = await fetch(`/api/store/addresses/${editingId}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error('Erro ao atualizar.');
+        addr = await res.json();
+        setAddresses(prev => prev.map(a => a.id === editingId ? addr : a));
+      } else {
+        const res = await fetch('/api/store/addresses', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error('Erro ao salvar.');
+        addr = await res.json();
+        setAddresses(prev => [...prev, addr]);
+      }
+      setSelectedId(addr.id);
+      setShowForm(false);
+      setEditingId(null);
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar endereço.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await fetch(`/api/store/addresses/${id}`, { method: 'DELETE' });
+      setAddresses(prev => prev.filter(a => a.id !== id));
+      if (selectedId === id) setSelectedId(null);
+    } catch { setError('Erro ao excluir endereço.'); }
+  };
+
+  const handleSetDefault = async (id: number) => {
+    try {
+      const res = await fetch(`/api/store/addresses/${id}/default`, { method: 'POST' });
+      if (res.ok) {
+        setAddresses(prev => prev.map(a => ({ ...a, is_default: a.id === id })));
+      }
+    } catch { setError('Erro ao definir endereço padrão.'); }
+  };
+
+  const handleContinue = () => {
+    if (customer && selectedId) {
+      const addr = addresses?.find(a => a.id === selectedId);
+      if (addr) {
+        onNext({
+          zip_code: addr.zip_code,
+          street: addr.street,
+          number: addr.number,
+          complement: addr.complement || '',
+          neighborhood: addr.neighborhood,
+          city: addr.city,
+          state: addr.state,
+        }, addr.id);
+        return;
+      }
+    }
+    // Guest or new unsaved address
+    const clean = cep.replace(/\D/g, '');
+    if (!clean || !street.trim() || !number.trim() || !city.trim() || !state.trim()) {
+      setError('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    onNext({
+      zip_code: clean, street: street.trim(), number: number.trim(),
+      complement: complement.trim(), neighborhood: neighborhood.trim(),
+      city: city.trim(), state: state.trim().toUpperCase(),
+    }, null);
+  };
+
+  const loadingAddresses = customer && addresses === null;
+  if (loadingAddresses) return <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-primary-500/30 border-t-primary-500 rounded-full animate-spin" /></div>;
 
   return (
     <div>
       <h2 className="text-lg font-semibold text-text">Endereço de entrega</h2>
-      <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-        <div><input type="text" placeholder="CEP" maxLength={9} value={cep} onChange={e => setCep(e.target.value)} onBlur={e => lookupCep(e.target.value)} className={`${ic} ${loadingCep ? lc : ''}`} />{loadingCep && <p className="text-xs text-text-muted mt-1">Consultando CEP...</p>}{cepError && <p className="text-xs text-danger-500 mt-1">{cepError} — preencha manualmente</p>}</div>
-        <div className="grid grid-cols-3 gap-3"><input type="text" placeholder="Rua" value={street} onChange={e => setStreet(e.target.value)} className={`${ic} col-span-2`} disabled={loadingCep} /><input type="text" placeholder="Nº" value={number} onChange={e => setNumber(e.target.value)} className={ic} disabled={loadingCep} /></div>
-        <input type="text" placeholder="Complemento" value={complement} onChange={e => setComplement(e.target.value)} className={ic} disabled={loadingCep} />
-        <div className="grid grid-cols-3 gap-3"><input type="text" placeholder="Bairro" value={neighborhood} onChange={e => setNeighborhood(e.target.value)} className={ic} disabled={loadingCep} /><input type="text" placeholder="Cidade" value={city} onChange={e => setCity(e.target.value)} className={`${ic} col-span-2`} disabled={loadingCep} /></div>
-        <input type="text" placeholder="Estado (UF)" value={state} onChange={e => setState(e.target.value)} maxLength={2} className={`${ic} w-20`} disabled={loadingCep} />
-        <div className="flex gap-3 pt-2"><button type="button" onClick={onBack} className="px-4 py-2 text-sm font-medium text-text-muted hover:text-text">Voltar</button><button type="submit" className="flex-1 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700">Continuar</button></div>
-      </form>
+      {error && <div className="mt-3 text-sm text-danger-500 bg-danger-500/10 rounded-lg px-3 py-2">{error}</div>}
+
+      {/* Saved addresses list */}
+      {customer && addresses && addresses.length > 0 && !showForm && (
+        <div className="mt-4 space-y-2">
+          {addresses.map(addr => (
+            <div key={addr.id} className={`border rounded-lg p-3 transition-colors ${selectedId === addr.id ? 'border-primary-500 bg-primary-50' : 'border-border'}`}>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="radio" name="address" checked={selectedId === addr.id} onChange={() => { setSelectedId(addr.id); setError(''); }} className="mt-0.5 text-primary-600" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-text">{addr.label || 'Endereço'}</span>
+                    {addr.is_default && <span className="text-xs bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded">Padrão</span>}
+                  </div>
+                  <p className="text-xs text-text-muted mt-0.5">{addr.street}, {addr.number}{addr.complement ? ` - ${addr.complement}` : ''}</p>
+                  <p className="text-xs text-text-muted">{addr.neighborhood} — {addr.city}/{addr.state} — {addr.zip_code}</p>
+                </div>
+              </label>
+              <div className="flex gap-2 mt-2 ml-7">
+                <button onClick={() => { fillForm(addr); setEditingId(addr.id); setShowForm(true); setError(''); }} className="text-xs text-primary-600 hover:text-primary-700 font-medium">Editar</button>
+                {!addr.is_default && <button onClick={() => handleSetDefault(addr.id)} className="text-xs text-text-muted hover:text-text font-medium">Definir como padrão</button>}
+                {!addr.is_default && <button onClick={() => handleDelete(addr.id)} className="text-xs text-danger-500 hover:text-danger-600 font-medium">Excluir</button>}
+              </div>
+            </div>
+          ))}
+          <button onClick={() => { resetForm(); setEditingId(null); setShowForm(true); setError(''); }} className="w-full text-sm text-primary-600 hover:text-primary-700 font-medium py-2">
+            + Adicionar novo endereço
+          </button>
+        </div>
+      )}
+
+      {/* Address form */}
+      {(showForm || !customer || (addresses && addresses.length === 0)) && (
+        <div className="mt-4 space-y-3">
+          {customer && (
+            <input type="text" value={formLabel} onChange={e => setFormLabel(e.target.value)} placeholder="Nome do endereço (ex: Casa, Trabalho)" className={ic} />
+          )}
+          <div>
+            <input type="text" placeholder="CEP" maxLength={9} value={cep} onChange={e => setCep(e.target.value)} onBlur={e => lookupCep(e.target.value)} className={`${ic} ${loadingCep ? lc : ''}`} />
+            {loadingCep && <p className="text-xs text-text-muted mt-1">Consultando CEP...</p>}
+            {cepError && <p className="text-xs text-danger-500 mt-1">{cepError} — preencha manualmente</p>}
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <input type="text" placeholder="Rua" value={street} onChange={e => setStreet(e.target.value)} className={`${ic} col-span-2`} disabled={loadingCep} />
+            <input type="text" placeholder="Nº" value={number} onChange={e => setNumber(e.target.value)} className={ic} disabled={loadingCep} />
+          </div>
+          <input type="text" placeholder="Complemento" value={complement} onChange={e => setComplement(e.target.value)} className={ic} disabled={loadingCep} />
+          <div className="grid grid-cols-3 gap-3">
+            <input type="text" placeholder="Bairro" value={neighborhood} onChange={e => setNeighborhood(e.target.value)} className={ic} disabled={loadingCep} />
+            <input type="text" placeholder="Cidade" value={city} onChange={e => setCity(e.target.value)} className={`${ic} col-span-2`} disabled={loadingCep} />
+          </div>
+          <input type="text" placeholder="Estado (UF)" value={state} onChange={e => setState(e.target.value)} maxLength={2} className={`${ic} w-20`} disabled={loadingCep} />
+
+          {customer && showForm && (
+            <div className="flex gap-3 pt-1">
+              <button onClick={handleSaveAddress} disabled={saving} className="flex-1 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 flex justify-center">
+                {saving ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : editingId ? 'Atualizar endereço' : 'Salvar endereço'}
+              </button>
+              {(addresses?.length ?? 0) > 0 && (
+                <button onClick={() => { setShowForm(false); setEditingId(null); resetForm(); }} className="px-4 py-2 text-sm font-medium text-text-muted hover:text-text">Cancelar</button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-3 mt-6 pt-2">
+        <button type="button" onClick={onBack} className="px-4 py-2 text-sm font-medium text-text-muted hover:text-text">Voltar</button>
+        <button onClick={handleContinue} disabled={customer ? !selectedId && !showForm : false} className="flex-1 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">
+          Continuar
+        </button>
+      </div>
     </div>
   );
 }
@@ -150,69 +374,214 @@ function ShippingStep({ cep, onNext, onBack }: { cep: string; onNext: (method: s
 }
 
 // ─── Step 4: Payment + Confirm ───
-function PaymentStep({ address, shippingMethod, shippingCost, onBack }: {
-  address: Record<string, string>; shippingMethod: string; shippingCost: string;
+interface PaymentMethod {
+  gateway: string;
+  method: string;
+  type: string;
+  label: string;
+  description?: string;
+}
+
+interface CheckoutResult {
+  order?: { id: number; number: string; total: string };
+  payment_data?: {
+    status?: string;
+    qr_code?: string;
+    pix_code?: string;
+    boleto_url?: string;
+    boleto_digitable_line?: string;
+  };
+}
+
+function PaymentStep({ address, addressId, customerId, shippingMethod, shippingCost, onBack }: {
+  address: Record<string, string>; addressId: number | null; customerId?: number;
+  shippingMethod: string; shippingCost: string;
   onBack: () => void;
 }) {
-  const [methods, setMethods] = useState<{ gateway: string; method: string; label: string; type: string; description?: string }[]>([]);
-  const [selected, setSelected] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [selected, setSelected] = useState<PaymentMethod | null>(null);
+  const [methodsLoading, setMethodsLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<{ order?: { number: string; total: string }; payment_data?: { qr_code?: string; boleto_url?: string; status?: string } } | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<CheckoutResult | null>(null);
 
   // Credit card fields
   const [cardNumber, setCardNumber] = useState('');
   const [cardName, setCardName] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
+  const [installments, setInstallments] = useState(1);
 
   useEffect(() => {
-    fetch('/api/checkout/payment-methods').then(r => r.json()).then(d => setMethods(d.methods || [])).catch(() => {});
+    fetch('/api/checkout/payment-methods')
+      .then(r => r.json())
+      .then(d => setMethods(d.methods || []))
+      .catch(() => setError('Erro ao carregar formas de pagamento.'))
+      .finally(() => setMethodsLoading(false));
   }, []);
 
-  const handleConfirm = async () => {
-    setLoading(true); setError('');
-    try {
-      const body: Record<string, unknown> = {
-        session_id: getSessionId(), address,
-        shipping_method: shippingMethod, shipping_cost: shippingCost,
-        payment_gateway: selected, payment_method: selected,
-      };
-      if (selected === 'credit_card') {
-        body.card_number = cardNumber;
-        body.card_name = cardName;
-        body.card_expiry = cardExpiry;
-        body.card_cvv = cardCvv;
-      }
-      const res = await fetch('/api/checkout', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Erro');
-      setResult(data);
-    } catch (err) { setError(err instanceof Error ? err.message : 'Erro ao finalizar compra'); }
-    finally { setLoading(false); }
+  const validateFields = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!selected) {
+      errors.payment = 'Selecione uma forma de pagamento.';
+    }
+    if (selected?.type === 'credit_card') {
+      if (!cardNumber.replace(/\D/g, '').trim()) errors.card_number = 'Número do cartão obrigatório.';
+      else if (cardNumber.replace(/\D/g, '').length < 13) errors.card_number = 'Número do cartão inválido.';
+      if (!cardName.trim()) errors.card_name = 'Nome no cartão obrigatório.';
+      if (!cardExpiry.trim()) errors.card_expiry = 'Validade obrigatória.';
+      else if (!/^\d{2}\/\d{2}$/.test(cardExpiry.trim())) errors.card_expiry = 'Formato MM/AA.';
+      if (!cardCvv.trim()) errors.card_cvv = 'CVV obrigatório.';
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
+  const handleSelect = (method: PaymentMethod) => {
+    setSelected({ ...method, type: method.type.toLowerCase() });
+    setError('');
+    setFieldErrors({});
+    setCardNumber(''); setCardName(''); setCardExpiry(''); setCardCvv(''); setInstallments(1);
+  };
+
+  const handleConfirm = async () => {
+    if (!validateFields()) return;
+    if (!selected) return;
+
+    setSubmitting(true); setError(''); setFieldErrors({});
+    try {
+      const body: Record<string, unknown> = {
+        session_id: getSessionId(),
+        shipping_method: shippingMethod,
+        shipping_cost: shippingCost,
+        payment_gateway: selected.gateway,
+        payment_method: selected.method,
+      };
+
+      if (addressId) {
+        body.address_id = addressId;
+        if (customerId) body.customer_id = customerId;
+      } else {
+        body.address = address;
+        if (customerId) { body.customer_id = customerId; body.save_address = true; body.address_label = 'Endereço'; }
+      }
+
+      if (selected.type === 'credit_card') {
+        body.card_number = cardNumber.replace(/\D/g, '');
+        body.card_name = cardName.trim();
+        body.card_expiry = cardExpiry.trim();
+        body.card_cvv = cardCvv.trim();
+        body.installments = installments;
+      }
+
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.errors) {
+          setFieldErrors(data.errors);
+        }
+        throw new Error(data.message || 'Erro ao processar pagamento.');
+      }
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao finalizar compra.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Success screen ──
   if (result) {
+    const pd = result.payment_data;
+    const isCreditCard = selected?.type === 'credit_card';
+    const isPix = selected?.type === 'pix';
+    const isBoleto = selected?.type === 'boleto';
+    const total = parseFloat(result.order?.total || '0').toFixed(2).replace('.', ',');
+
     return (
       <div className="text-center">
-        <div className="w-16 h-16 bg-success-500 rounded-full flex items-center justify-center mx-auto"><Check size={32} className="text-white" /></div>
+        <div className="w-16 h-16 bg-success-500 rounded-full flex items-center justify-center mx-auto">
+          <Check size={32} className="text-white" />
+        </div>
         <h2 className="text-xl font-bold text-text mt-4">Pedido confirmado!</h2>
         <p className="text-text-muted mt-1">Número: <strong>{result.order?.number}</strong></p>
-        <p className="text-text-muted">Total: R$ {parseFloat(result.order?.total || '0').toFixed(2).replace('.', ',')}</p>
-        {result.payment_data?.qr_code && (
-          <div className="mt-4 p-4 bg-bg rounded-lg inline-block">
-            <p className="text-sm font-medium text-text mb-2">Pague com PIX:</p>
-            <div className="bg-white p-2 rounded"><img src={result.payment_data.qr_code} alt="QR Code PIX" className="w-40 h-40 mx-auto" /></div>
+        <p className="text-text-muted">Total: R$ {total}</p>
+
+        {isCreditCard && pd?.status === 'paid' && (
+          <div className="mt-4 p-4 bg-success-500/10 border border-success-500/20 rounded-lg">
+            <p className="text-sm font-semibold text-success-600">Pagamento aprovado</p>
+            <p className="text-xs text-text-muted mt-1">Transação processada com sucesso.</p>
           </div>
         )}
-        {result.payment_data?.boleto_url && <a href={result.payment_data.boleto_url} target="_blank" className="mt-4 inline-block text-primary-600 hover:text-primary-700 font-medium text-sm">Imprimir Boleto</a>}
+
+        {isPix && (
+          <div className="mt-4 p-4 bg-bg rounded-lg inline-block text-left">
+            <p className="text-sm font-semibold text-text mb-3 text-center">Pagamento via PIX</p>
+            {pd?.qr_code && (
+              <div className="bg-white p-2 rounded mb-3 flex justify-center">
+                <img src={pd.qr_code} alt="QR Code PIX" className="w-40 h-40" />
+              </div>
+            )}
+            {pd?.pix_code && (
+              <div>
+                <p className="text-xs text-text-muted mb-1">Código copia e cola:</p>
+                <div className="bg-bg border border-border rounded p-2">
+                  <p className="text-xs text-text break-all font-mono select-all">{pd.pix_code}</p>
+                </div>
+                <button
+                  onClick={() => navigator.clipboard.writeText(pd.pix_code || '')}
+                  className="mt-2 text-xs text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  Copiar código
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-text-muted mt-3">Status: Aguardando pagamento</p>
+          </div>
+        )}
+
+        {isBoleto && (
+          <div className="mt-4 p-4 bg-bg rounded-lg inline-block text-left">
+            <p className="text-sm font-semibold text-text mb-2 text-center">Boleto Bancário</p>
+            {pd?.boleto_digitable_line && (
+              <div className="mb-3">
+                <p className="text-xs text-text-muted mb-1">Linha digitável:</p>
+                <div className="bg-bg border border-border rounded p-2">
+                  <p className="text-xs text-text break-all font-mono select-all">{pd.boleto_digitable_line}</p>
+                </div>
+                <button
+                  onClick={() => navigator.clipboard.writeText(pd.boleto_digitable_line || '')}
+                  className="mt-2 text-xs text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  Copiar linha digitável
+                </button>
+              </div>
+            )}
+            {pd?.boleto_url && (
+              <a
+                href={pd.boleto_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+              >
+                Visualizar / Imprimir Boleto
+              </a>
+            )}
+            <p className="text-xs text-text-muted mt-3 text-center">Status: Aguardando pagamento</p>
+          </div>
+        )}
       </div>
     );
   }
 
+  // ── Form view ──
   const ic = "w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500";
+  const ie = "border-danger-500 focus:ring-danger-500/20 focus:border-danger-500";
   const shippingPrice = parseFloat(shippingCost);
 
   return (
@@ -220,36 +589,124 @@ function PaymentStep({ address, shippingMethod, shippingCost, onBack }: {
       <h2 className="text-lg font-semibold text-text">Pagamento</h2>
       {error && <div className="mt-3 text-sm text-danger-500 bg-danger-500/10 rounded-lg px-3 py-2">{error}</div>}
 
+      {methods.length === 0 && !methodsLoading && (
+        <p className="mt-4 text-sm text-text-muted">Nenhuma forma de pagamento disponível.</p>
+      )}
+
       <div className="mt-4 space-y-2">
-        {methods.map(m => (
-          <label key={m.gateway} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${selected === m.gateway ? 'border-primary-500 bg-primary-50' : 'border-border hover:border-primary-300'}`}>
-            <input type="radio" name="payment" value={m.gateway} checked={selected === m.gateway} onChange={() => setSelected(m.gateway)} className="text-primary-600" />
-            <div><p className="text-sm font-medium text-text">{m.label}</p>{m.description && <p className="text-xs text-text-muted">{m.description}</p>}</div>
-          </label>
-        ))}
+        {methods.map(m => {
+          const sel = selected?.gateway === m.gateway && selected?.method === m.method;
+          return (
+            <label
+              key={`${m.gateway}-${m.method}`}
+              className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${sel ? 'border-primary-500 bg-primary-50' : 'border-border hover:border-primary-300'}`}
+            >
+              <input
+                type="radio"
+                name="payment"
+                checked={sel}
+                onChange={() => handleSelect(m)}
+                className="text-primary-600"
+              />
+              <div>
+                <p className="text-sm font-medium text-text">{m.label}</p>
+                {m.description && <p className="text-xs text-text-muted">{m.description}</p>}
+              </div>
+            </label>
+          );
+        })}
       </div>
+      {fieldErrors.payment && <p className="mt-1 text-xs text-danger-500">{fieldErrors.payment}</p>}
 
       {/* Credit card form */}
-      {methods.find(m => m.gateway === selected)?.type === 'credit_card' && (
+      {selected?.type === 'credit_card' && (
         <div className="mt-4 p-4 border border-border rounded-lg space-y-3">
-          <input type="text" value={cardNumber} onChange={e => setCardNumber(e.target.value)} placeholder="Número do cartão" maxLength={19} className={ic} />
-          <input type="text" value={cardName} onChange={e => setCardName(e.target.value)} placeholder="Nome no cartão" className={ic} />
+          <div>
+            <input
+              type="text"
+              value={cardNumber}
+              onChange={e => { setCardNumber(e.target.value); setFieldErrors(prev => ({ ...prev, card_number: '' })); }}
+              placeholder="Número do cartão"
+              maxLength={19}
+              className={`${ic} ${fieldErrors.card_number ? ie : ''}`}
+            />
+            {fieldErrors.card_number && <p className="mt-1 text-xs text-danger-500">{fieldErrors.card_number}</p>}
+          </div>
+          <div>
+            <input
+              type="text"
+              value={cardName}
+              onChange={e => { setCardName(e.target.value); setFieldErrors(prev => ({ ...prev, card_name: '' })); }}
+              placeholder="Nome no cartão"
+              className={`${ic} ${fieldErrors.card_name ? ie : ''}`}
+            />
+            {fieldErrors.card_name && <p className="mt-1 text-xs text-danger-500">{fieldErrors.card_name}</p>}
+          </div>
           <div className="grid grid-cols-2 gap-3">
-            <input type="text" value={cardExpiry} onChange={e => setCardExpiry(e.target.value)} placeholder="MM/AA" maxLength={5} className={ic} />
-            <input type="text" value={cardCvv} onChange={e => setCardCvv(e.target.value)} placeholder="CVV" maxLength={4} className={ic} />
+            <div>
+              <input
+                type="text"
+                value={cardExpiry}
+                onChange={e => { setCardExpiry(e.target.value); setFieldErrors(prev => ({ ...prev, card_expiry: '' })); }}
+                placeholder="MM/AA"
+                maxLength={5}
+                className={`${ic} ${fieldErrors.card_expiry ? ie : ''}`}
+              />
+              {fieldErrors.card_expiry && <p className="mt-1 text-xs text-danger-500">{fieldErrors.card_expiry}</p>}
+            </div>
+            <div>
+              <input
+                type="text"
+                value={cardCvv}
+                onChange={e => { setCardCvv(e.target.value.replace(/\D/g, '')); setFieldErrors(prev => ({ ...prev, card_cvv: '' })); }}
+                placeholder="CVV"
+                maxLength={4}
+                className={`${ic} ${fieldErrors.card_cvv ? ie : ''}`}
+              />
+              {fieldErrors.card_cvv && <p className="mt-1 text-xs text-danger-500">{fieldErrors.card_cvv}</p>}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-text-muted block mb-1">Parcelas</label>
+            <select
+              value={installments}
+              onChange={e => setInstallments(Number(e.target.value))}
+              className={`${ic} bg-surface`}
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
+                <option key={n} value={n}>{n}x de R$ {(shippingPrice / n).toFixed(2).replace('.', ',')}</option>
+              ))}
+            </select>
           </div>
         </div>
       )}
 
       <div className="mt-6 pt-4 border-t space-y-2 text-sm">
-        <div className="flex justify-between"><span className="text-text-muted">Endereço</span><span className="text-text">{address.street}, {address.number} — {address.city}/{address.state}</span></div>
-        <div className="flex justify-between"><span className="text-text-muted">Frete</span><span className="text-text">{shippingMethod} — R$ {shippingPrice.toFixed(2).replace('.', ',')}</span></div>
+        <div className="flex justify-between">
+          <span className="text-text-muted">Endereço</span>
+          <span className="text-text text-right max-w-[60%]">{address.street}, {address.number} — {address.city}/{address.state}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-text-muted">Frete</span>
+          <span className="text-text">{shippingMethod} — R$ {shippingPrice.toFixed(2).replace('.', ',')}</span>
+        </div>
       </div>
 
       <div className="flex gap-3 mt-6 pt-2">
-        <button onClick={onBack} disabled={loading} className="px-4 py-2 text-sm font-medium text-text-muted hover:text-text">Voltar</button>
-        <button onClick={handleConfirm} disabled={!selected || loading} className="flex-1 rounded-lg bg-success-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-success-700 disabled:opacity-50 flex justify-center">
-          {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Confirmar Pedido'}
+        <button
+          onClick={onBack}
+          disabled={submitting}
+          className="px-4 py-2 text-sm font-medium text-text-muted hover:text-text disabled:opacity-50"
+        >
+          Voltar
+        </button>
+        <button
+          onClick={handleConfirm}
+          disabled={!selected || submitting}
+          className="flex-1 rounded-lg bg-success-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-success-600 disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {submitting && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+          {submitting ? 'Processando...' : 'Confirmar Pedido'}
         </button>
       </div>
     </div>
@@ -259,13 +716,24 @@ function PaymentStep({ address, shippingMethod, shippingCost, onBack }: {
 // ─── Main ───
 export default function CheckoutPage() {
   const [step, setStep] = useState(1);
+  const [customer, setCustomer] = useState<CustomerInfo | null>(null);
   const [address, setAddress] = useState<Record<string, string>>({});
+  const [addressId, setAddressId] = useState<number | null>(null);
   const [shippingMethod, setShippingMethod] = useState('');
   const [shippingCost, setShippingCost] = useState('0');
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    fetch('/api/store/me').then(r => r.json()).then(d => { if (d.authenticated) setStep(2); }).catch(() => {}).finally(() => setCheckingAuth(false));
+    fetch('/api/store/me')
+      .then(r => r.json())
+      .then(d => {
+        if (d.authenticated && d.customer) {
+          setCustomer(d.customer);
+          setStep(2);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setCheckingAuth(false));
   }, []);
 
   return (
@@ -284,10 +752,10 @@ export default function CheckoutPage() {
       </div>
       <div className="bg-surface rounded-xl border border-border p-6">
         {checkingAuth ? <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-primary-500/30 border-t-primary-500 rounded-full animate-spin" /></div> :
-          step === 1 ? <IdentificationStep onNext={() => setStep(2)} /> :
-          step === 2 ? <AddressStep onNext={(a) => { setAddress(a); setStep(3); }} onBack={() => setStep(1)} /> :
+          step === 1 ? <IdentificationStep onNext={(c) => { setCustomer(c); setStep(2); }} /> :
+          step === 2 ? <AddressStep customer={customer} onNext={(a, id) => { setAddress(a); setAddressId(id); setStep(3); }} onBack={() => setStep(1)} /> :
           step === 3 ? <ShippingStep cep={address.zip_code} onNext={(m, c) => { setShippingMethod(m); setShippingCost(c); setStep(4); }} onBack={() => setStep(2)} /> :
-          <PaymentStep address={address} shippingMethod={shippingMethod} shippingCost={shippingCost} onBack={() => setStep(3)} />
+          <PaymentStep address={address} addressId={addressId} customerId={customer?.id} shippingMethod={shippingMethod} shippingCost={shippingCost} onBack={() => setStep(3)} />
         }
       </div>
     </div>

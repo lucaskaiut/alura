@@ -12,10 +12,15 @@ import ProductFormPage from "./pages/ProductFormPage";
 import AttributesPage from "./pages/AttributesPage";
 import CustomersPage from "./pages/CustomersPage";
 import OrdersPage from "./pages/OrdersPage";
+import OrderDetailPage from "./pages/OrderDetailPage";
+import OrderStatusesPage from "./pages/OrderStatusesPage";
 import CouponsPage from "./pages/CouponsPage";
 import PagesPage from "./pages/PagesPage";
+import PageFormPage from "./pages/PageFormPage";
 import MediaPage from "./pages/MediaPage";
+import MenuPage from "./pages/MenuPage";
 import SettingsPage from "./pages/SettingsPage";
+import ShippingRulesPage from "./pages/ShippingRulesPage";
 
 export default function App() {
   return (
@@ -34,10 +39,16 @@ export default function App() {
               <Route path="/attributes" element={<AttributesPage />} />
               <Route path="/customers" element={<CustomersPage />} />
               <Route path="/orders" element={<OrdersPage />} />
+              <Route path="/orders/:id" element={<OrderDetailPage />} />
+              <Route path="/order-statuses" element={<OrderStatusesPage />} />
               <Route path="/coupons" element={<CouponsPage />} />
               <Route path="/pages" element={<PagesPage />} />
+              <Route path="/pages/new" element={<PageFormPage />} />
+              <Route path="/pages/:id/edit" element={<PageFormPage />} />
               <Route path="/media" element={<MediaPage />} />
+              <Route path="/menu" element={<MenuPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/shipping-rules" element={<ShippingRulesPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

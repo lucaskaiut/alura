@@ -4,6 +4,7 @@ namespace App\Core\Shipping;
 
 use App\Core\Shipping\Contracts\ShippingGateway;
 use App\Core\Shipping\DTOs\ShippingOption;
+use App\Core\Shipping\DTOs\ShippingRequest;
 
 class ShippingCore
 {
@@ -14,7 +15,8 @@ class ShippingCore
         $this->gateways[$gateway->name()] = $gateway;
     }
 
-    public function calculate(string $gatewayName, array $data): array
+    /** @return ShippingOption[] */
+    public function calculate(string $gatewayName, ShippingRequest $request): array
     {
         $gateway = $this->gateways[$gatewayName] ?? null;
 
@@ -22,29 +24,26 @@ class ShippingCore
             return [];
         }
 
-        return $gateway->calculate($data);
+        return $gateway->calculate($request);
     }
 
-    public function calculateAll(array $data): array
+    /** @return ShippingOption[] */
+    public function calculateAll(ShippingRequest $request): array
     {
         $results = [];
 
         foreach ($this->gateways as $gateway) {
-            $options = $gateway->calculate($data);
-
-            foreach ($options as $option) {
-                $results[] = new ShippingOption(
-                    gateway: $option['gateway'] ?? $gateway->name(),
-                    serviceCode: $option['service_code'] ?? '',
-                    name: $option['name'] ?? '',
-                    price: (float) ($option['price'] ?? 0),
-                    deliveryDays: $option['delivery_days'] ?? null,
-                    meta: $option['meta'] ?? [],
-                );
+            foreach ($gateway->calculate($request) as $option) {
+                $results[] = $option;
             }
         }
 
         return $results;
+    }
+
+    public function getGatewayNames(): array
+    {
+        return array_keys($this->gateways);
     }
 
     public function generateLabel(string $gatewayName, string $serviceCode, array $data): array
