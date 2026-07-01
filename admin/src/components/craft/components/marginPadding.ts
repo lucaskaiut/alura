@@ -1,13 +1,13 @@
 // ─── Common margin/padding schemas (reusable) ───
 
-export const marginSchemas: PropDef[] = [
-  { name: "marginTop", label: "Margin Top", type: "text", placeholder: "0 ou auto" },
+export const marginSchemas = [
+  { name: "marginTop", label: "Margin Top", type: "text" as const, placeholder: "0 ou auto" },
   { name: "marginRight", label: "Margin Right", type: "text", placeholder: "0 ou auto" },
   { name: "marginBottom", label: "Margin Bottom", type: "text", placeholder: "0 ou auto" },
   { name: "marginLeft", label: "Margin Left", type: "text", placeholder: "0 ou auto" },
 ];
 
-export const paddingSchemas: PropDef[] = [
+export const paddingSchemas = [
   { name: "paddingTop", label: "Padding Top (px)", type: "number" },
   { name: "paddingRight", label: "Padding Right (px)", type: "number" },
   { name: "paddingBottom", label: "Padding Bottom (px)", type: "number" },
