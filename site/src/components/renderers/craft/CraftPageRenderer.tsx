@@ -1,3 +1,5 @@
+import type { ElementType } from "react";
+
 interface CraftNode {
   type: string | { resolvedName: string };
   displayName?: string;
@@ -53,7 +55,7 @@ function TextBlockDisplay(props: Record<string, unknown>) {
 
 function TitleDisplay(props: Record<string, unknown>) {
   const { text, level, align, color } = props;
-  const Tag = (level as keyof JSX.IntrinsicElements) || "h2";
+  const Tag = ((level as string) || "h2") as ElementType;
   return <Tag style={{ textAlign: ((align as string) || "left") as "left" | "center" | "right", color: (color as string) || "#111827", fontWeight: 700, ...marginStyle(props), ...paddingStyle(props) }}>{String(text || "")}</Tag>;
 }
 
