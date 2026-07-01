@@ -89,15 +89,22 @@ function ButtonBlockDisplay(props: Record<string, unknown>) {
 }
 
 function BannerDisplay(props: Record<string, unknown>) {
-  const { imageSrc, title, subtitle, buttonLabel, buttonHref, overlayOpacity, height, textColor, borderRadius } = props;
-  const opacity = overlayOpacity != null ? Number(overlayOpacity) : 40;
+  const imageSrc = props.imageSrc as string;
+  const title = props.title as string;
+  const subtitle = props.subtitle as string | undefined;
+  const buttonLabel = props.buttonLabel as string | undefined;
+  const buttonHref = props.buttonHref as string;
+  const overlayOpacity = props.overlayOpacity != null ? Number(props.overlayOpacity) : 40;
+  const height = (props.height as number) || 300;
+  const textColor = (props.textColor as string) || "#ffffff";
+  const borderRadius = (props.borderRadius as number) || 8;
   return (
-    <div style={{ height: (height as number) || 300, backgroundImage: `url(${imageSrc || "https://placehold.co/1200x400/1e3a5f/ffffff?text=Banner"})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative", borderRadius: (borderRadius as number) || 8, overflow: "hidden", ...marginStyle(props) }}>
-      {opacity > 0 && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${opacity / 100})` }} />}
-      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: 24, textAlign: "center", color: (textColor as string) || "#fff" }}>
+    <div style={{ height, backgroundImage: `url(${imageSrc || "https://placehold.co/1200x400/1e3a5f/ffffff?text=Banner"})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative", borderRadius, overflow: "hidden", ...marginStyle(props) }}>
+      {overlayOpacity > 0 && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${overlayOpacity / 100})` }} />}
+      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: 24, textAlign: "center", color: textColor }}>
         <h2 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>{String(title || "")}</h2>
         {subtitle && <p style={{ fontSize: 16, marginTop: 8, opacity: 0.9 }}>{String(subtitle)}</p>}
-        {buttonLabel && <a href={String(buttonHref || "#")} style={{ marginTop: 16, padding: "10px 24px", background: (textColor as string) || "#fff", color: (textColor as string) === "#ffffff" ? "#111827" : "#fff", borderRadius: 8, textDecoration: "none", fontWeight: 500 }}>{String(buttonLabel)}</a>}
+        {buttonLabel && <a href={String(buttonHref || "#")} style={{ marginTop: 16, padding: "10px 24px", background: textColor, color: textColor === "#ffffff" ? "#111827" : "#fff", borderRadius: 8, textDecoration: "none", fontWeight: 500 }}>{String(buttonLabel)}</a>}
       </div>
     </div>
   );
