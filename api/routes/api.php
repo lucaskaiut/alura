@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\PageController;
 use App\Http\Controllers\Api\PaymentConfigController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\RouterController;
 use App\Http\Controllers\Api\ShippingRuleController;
 use App\Http\Controllers\Api\StockController;
@@ -30,6 +31,9 @@ use Illuminate\Support\Facades\Route;
 // Public — NO auth, no tenant required
 // =============================================
 Route::middleware('throttle:60,1')->post('/auth/login', [AuthController::class, 'login'])->name('login');
+
+// Health check — fully public, no auth, no tenant
+Route::get('/health', [HealthController::class, 'check']);
 
 // Media serve — fully public, no auth, no tenant (browser <img> tags can't send headers)
 Route::get('/media/{medium}/serve', [MediaController::class, 'serve'])->where('medium', '[0-9]+');
