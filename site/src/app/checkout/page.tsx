@@ -190,14 +190,14 @@ function AddressStep({ customer, onNext, onBack }: {
         });
         if (!res.ok) throw new Error('Erro ao atualizar.');
         addr = await res.json();
-        setAddresses(prev => prev.map(a => a.id === editingId ? addr : a));
+        setAddresses(prev => (prev ?? []).map(a => a.id === editingId ? addr : a));
       } else {
         const res = await fetch('/api/store/addresses', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error('Erro ao salvar.');
         addr = await res.json();
-        setAddresses(prev => [...prev, addr]);
+        setAddresses(prev => [...(prev ?? []), addr]);
       }
       setSelectedId(addr.id);
       setShowForm(false);
@@ -213,7 +213,7 @@ function AddressStep({ customer, onNext, onBack }: {
   const handleDelete = async (id: number) => {
     try {
       await fetch(`/api/store/addresses/${id}`, { method: 'DELETE' });
-      setAddresses(prev => prev.filter(a => a.id !== id));
+      setAddresses(prev => (prev ?? []).filter(a => a.id !== id));
       if (selectedId === id) setSelectedId(null);
     } catch { setError('Erro ao excluir endereço.'); }
   };
@@ -222,7 +222,7 @@ function AddressStep({ customer, onNext, onBack }: {
     try {
       const res = await fetch(`/api/store/addresses/${id}/default`, { method: 'POST' });
       if (res.ok) {
-        setAddresses(prev => prev.map(a => ({ ...a, is_default: a.id === id })));
+        setAddresses(prev => (prev ?? []).map(a => ({ ...a, is_default: a.id === id })));
       }
     } catch { setError('Erro ao definir endereço padrão.'); }
   };
