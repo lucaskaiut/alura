@@ -12,7 +12,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
     <ToastProvider>
       <header className="sticky top-0 z-40 border-b bg-surface">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
-          <Link href="/" className="text-xl font-bold text-primary-700">Njord</Link>
+          <Link href="/" className="text-xl font-bold text-primary-700">Alura</Link>
           <div className="flex flex-1 items-center gap-2">
             <SearchBar />
             <StoreNav />
@@ -27,9 +27,9 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
             <div><h3 className="text-sm font-semibold text-text">Loja</h3><ul className="mt-3 space-y-2"><li><Link href="/" className="text-sm text-text-muted hover:text-primary-600">Produtos</Link></li><li><Link href="/busca" className="text-sm text-text-muted hover:text-primary-600">Buscar</Link></li></ul></div>
             <div><h3 className="text-sm font-semibold text-text">Atendimento</h3><ul className="mt-3 space-y-2"><li><Link href="/" className="text-sm text-text-muted hover:text-primary-600">Contato</Link></li><li><Link href="/" className="text-sm text-text-muted hover:text-primary-600">Trocas e devoluções</Link></li></ul></div>
             <div><h3 className="text-sm font-semibold text-text">Institucional</h3><ul className="mt-3 space-y-2"><li><Link href="/" className="text-sm text-text-muted hover:text-primary-600">Sobre nós</Link></li><li><Link href="/" className="text-sm text-text-muted hover:text-primary-600">Política de privacidade</Link></li></ul></div>
-            <div><h3 className="text-sm font-semibold text-text">Njord</h3><p className="mt-3 text-sm text-text-muted">Plataforma de e-commerce open source.</p></div>
+            <div><h3 className="text-sm font-semibold text-text">Alura</h3><p className="mt-3 text-sm text-text-muted">Plataforma de e-commerce open source.</p></div>
           </div>
-          <div className="mt-8 border-t pt-4 text-center text-xs text-text-muted">&copy; {new Date().getFullYear()} Njord. Todos os direitos reservados.</div>
+          <div className="mt-8 border-t pt-4 text-center text-xs text-text-muted">&copy; {new Date().getFullYear()} Alura. Todos os direitos reservados.</div>
         </div>
       </footer>
     </ToastProvider>

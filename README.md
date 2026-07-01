@@ -1,4 +1,4 @@
-# Njord — Plataforma SaaS de E-Commerce Multi-Tenant
+# Alura — Plataforma SaaS de E-Commerce Multi-Tenant
 
 ## Requisitos
 
@@ -22,7 +22,7 @@ curl -H "X-Tenant-Domain: demo" http://localhost:8080/api/ping
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -H "X-Tenant-Domain: demo" \
-  -d '{"email":"admin@njord.com","password":"password"}'
+  -d '{"email":"admin@alura.com","password":"password"}'
 ```
 
 ## Credenciais Padrão
@@ -30,13 +30,13 @@ curl -X POST http://localhost:8080/api/auth/login \
 | Campo | Valor |
 |---|---|
 | Tenant | demo |
-| Email | admin@njord.com |
+| Email | admin@alura.com |
 | Senha | password |
 
 ## Estrutura
 
 ```
-njord/
+alura/
 ├── api/          # Laravel 13 API (PHP 8.4)
 ├── admin/        # React SPA (Vite + TanStack Query)
 ├── site/         # Next.js Store Frontend
@@ -74,12 +74,12 @@ npm run dev        # http://localhost:3000
 
 | Serviço | Container | Porta |
 |---|---|---|
-| Nginx | njord-nginx | 8080 |
-| PHP-FPM | njord-app | — |
-| Horizon | njord-horizon | — |
-| Scheduler | njord-scheduler | — |
-| MySQL 8.4 | njord-mysql | 3306 |
-| Redis 7 | njord-redis | 6379 |
+| Nginx | alura-nginx | 8080 |
+| PHP-FPM | alura-app | — |
+| Horizon | alura-horizon | — |
+| Scheduler | alura-scheduler | — |
+| MySQL 8.4 | alura-mysql | 3306 |
+| Redis 7 | alura-redis | 6379 |
 
 ## API Endpoints Principais
 

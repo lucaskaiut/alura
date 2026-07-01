@@ -13,7 +13,7 @@ class PageController extends Controller
     private function revalidateSite(string $slug): void
     {
         $siteUrl = config('app.site_url', 'http://localhost:3000');
-        $token = env('REVALIDATE_TOKEN', 'njord-revalidate-secret');
+        $token = env('REVALIDATE_TOKEN', 'alura-revalidate-secret');
         try {
             Http::withHeaders(['x-revalidate-token' => $token])
                 ->post("{$siteUrl}/api/revalidate", ['path' => "/{$slug}"]);

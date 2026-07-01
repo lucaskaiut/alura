@@ -15,7 +15,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = req.cookies.get('njord_token')?.value;
+  const token = req.cookies.get('alura_token')?.value;
   const tenantDomain = getTenantDomain(req);
   const body = req.body ? await req.text() : undefined;
 

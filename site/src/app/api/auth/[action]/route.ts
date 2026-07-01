@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const path = req.nextUrl.pathname.replace('/api/auth', '/api/store');
   const body = req.body ? await req.text() : undefined;
   const cookieStore = await cookies();
-  const token = cookieStore.get('njord_token')?.value;
+  const token = cookieStore.get('alura_token')?.value;
   const headersList = await nextHeaders();
   const tenantDomain = (headersList.get('host') || '').split(':')[0];
 
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   if (responseData.token) {
     const res = NextResponse.json(responseData, { status: laravelRes.status });
-    res.cookies.set('njord_token', responseData.token, {
+    res.cookies.set('alura_token', responseData.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

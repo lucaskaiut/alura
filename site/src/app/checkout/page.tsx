@@ -11,7 +11,7 @@ const steps = [
 ];
 
 function getSessionId() {
-  const id = localStorage.getItem('njord_cart_session');
+  const id = localStorage.getItem('alura_cart_session');
   return id || '';
 }
 

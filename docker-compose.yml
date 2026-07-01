@@ -1,7 +1,7 @@
 services:
   nginx:
     image: nginx:alpine
-    container_name: njord-nginx
+    container_name: alura-nginx
     ports:
       - "${NGINX_PORT:-8080}:80"
     volumes:
@@ -11,14 +11,14 @@ services:
     depends_on:
       - app
     networks:
-      - njord
+      - alura
     restart: unless-stopped
 
   app:
     build:
       context: ./docker/php
       dockerfile: Dockerfile
-    container_name: njord-app
+    container_name: alura-app
     working_dir: /var/www/api
     volumes:
       - ./api:/var/www/api
@@ -34,14 +34,14 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - njord
+      - alura
     restart: unless-stopped
 
   horizon:
     build:
       context: ./docker/php
       dockerfile: Dockerfile
-    container_name: njord-horizon
+    container_name: alura-horizon
     working_dir: /var/www/api
     command: php artisan horizon
     volumes:
@@ -52,14 +52,14 @@ services:
       - mysql
       - redis
     networks:
-      - njord
+      - alura
     restart: unless-stopped
 
   scheduler:
     build:
       context: ./docker/php
       dockerfile: Dockerfile
-    container_name: njord-scheduler
+    container_name: alura-scheduler
     working_dir: /var/www/api
     command: |
       sh -c "while true; do php artisan schedule:run --verbose --no-interaction & sleep 60; done"
@@ -71,24 +71,24 @@ services:
       - mysql
       - redis
     networks:
-      - njord
+      - alura
     restart: unless-stopped
 
   mysql:
     image: mysql:8.4
-    container_name: njord-mysql
+    container_name: alura-mysql
     ports:
       - "${MYSQL_PORT:-3306}:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-njord_secret}
-      MYSQL_DATABASE: ${DB_DATABASE:-njord}
-      MYSQL_USER: ${DB_USERNAME:-njord}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-njord_secret}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-alura_secret}
+      MYSQL_DATABASE: ${DB_DATABASE:-alura}
+      MYSQL_USER: ${DB_USERNAME:-alura}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-alura_secret}
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf
     networks:
-      - njord
+      - alura
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -98,13 +98,13 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: njord-redis
+    container_name: alura-redis
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     networks:
-      - njord
+      - alura
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -114,19 +114,19 @@ services:
 
   mailhog:
     image: mailhog/mailhog:latest
-    container_name: njord-mailhog
+    container_name: alura-mailhog
     ports:
       - "${MAILHOG_SMTP_PORT:-1025}:1025"
       - "${MAILHOG_UI_PORT:-8025}:8025"
     networks:
-      - njord
+      - alura
     restart: unless-stopped
 
   admin:
     build:
       context: ./admin
       dockerfile: Dockerfile
-    container_name: njord-admin
+    container_name: alura-admin
     ports:
       - "5173:5173"
     volumes:
@@ -136,14 +136,14 @@ services:
     depends_on:
       - app
     networks:
-      - njord
+      - alura
     restart: unless-stopped
 
   site:
     build:
       context: ./site
       dockerfile: Dockerfile
-    container_name: njord-site
+    container_name: alura-site
     ports:
       - "3000:3000"
     volumes:
@@ -156,7 +156,7 @@ services:
     depends_on:
       - nginx
     networks:
-      - njord
+      - alura
     restart: unless-stopped
 
 volumes:
@@ -164,5 +164,5 @@ volumes:
   redis_data:
 
 networks:
-  njord:
+  alura:
     driver: bridge

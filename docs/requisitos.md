@@ -1,6 +1,6 @@
 # Documento de Requisitos Funcionais
 
-# Njord - Plataforma SaaS de E-commerce Multi-Tenant
+# Alura - Plataforma SaaS de E-commerce Multi-Tenant
 
 ## Versão 1.0
 
@@ -8,7 +8,7 @@
 
 # 1. Visão Geral
 
-O Njord é uma plataforma SaaS de comércio eletrônico multi-tenant que permite que múltiplas empresas criem e gerenciem suas lojas virtuais de forma independente.
+O Alura é uma plataforma SaaS de comércio eletrônico multi-tenant que permite que múltiplas empresas criem e gerenciem suas lojas virtuais de forma independente.
 
 Cada empresa possuirá seus próprios dados, configurações, catálogo, pedidos, clientes e conteúdos, sem compartilhamento de informações entre tenants.
 

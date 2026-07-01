@@ -393,7 +393,7 @@ Usado apenas como `"ROOT"`. Não usar em outros lugares.
     "displayName": "Banner",
     "props": {
       "imageSrc": "https://placehold.co/1200x400/1e3a5f/ffffff?text=Banner",
-      "title": "Bem-vindo à Njord",
+      "title": "Bem-vindo à Alura",
       "subtitle": "Sua plataforma de e-commerce",
       "buttonLabel": "Ver produtos",
       "buttonHref": "/produtos",

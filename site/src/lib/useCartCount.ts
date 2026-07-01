@@ -14,7 +14,7 @@ export default function useCartCount(refresh: boolean) {
 
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'njord_cart') {
+      if (e.key === 'alura_cart') {
         const cart = JSON.parse(e.newValue || '{"items":[]}');
         setCount(cart.items.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0));
       }

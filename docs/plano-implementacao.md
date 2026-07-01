@@ -1,4 +1,4 @@
-# Plano de Implementação — Njord
+# Plano de Implementação — Alura
 
 ## Sumário
 
@@ -118,7 +118,7 @@ CREATE TABLE categories (
 ## 2. Estrutura de Diretórios
 
 ```
-njord/
+alura/
 ├── api/                             # Laravel 13 API
 │   ├── app/
 │   │   ├── Console/Commands/
@@ -368,7 +368,7 @@ Response
 | 1.4 | Migration `tenants` | id, name, slug, database_name, domain, subdomain, status, timestamps |
 | 1.5 | Model `Tenant` + `TenantScope` | Scope global que adiciona `where('tenant_id', tenant_id())` a todas as queries |
 | 1.6 | Trait `BelongsToTenant` | Auto-atribuição de tenant_id no creating |
-| 1.7 | Middleware `IdentifyTenant` | Resolve tenant por subdomínio (ex: `loja1.njord.local`) ou domínio customizado |
+| 1.7 | Middleware `IdentifyTenant` | Resolve tenant por subdomínio (ex: `loja1.alura.local`) ou domínio customizado |
 | 1.8 | Middleware `EnforceTenantScope` | Seta `tenant_id()` no container; aborta 404 se não identificado |
 | 1.9 | Helper `tenant_id()` | Função global que retorna o ID do tenant atual do container |
 | 1.10 | API Resource base `BaseJsonResource` | Envelope padronizado `{data, meta}` |
@@ -392,8 +392,8 @@ Response
 ### 1.4 Critérios de Validação
 
 - [ ] `php artisan test --filter=Tenant` — todos verdes
-- [ ] Requisição para `http://tenant1.njord.test/api/ping` retorna 200 com tenant_id no log
-- [ ] Requisição para `http://unknown.njord.test/api/ping` retorna 404
+- [ ] Requisição para `http://tenant1.alura.test/api/ping` retorna 200 com tenant_id no log
+- [ ] Requisição para `http://unknown.alura.test/api/ping` retorna 404
 - [ ] `docker compose up` sobe todos os 4 serviços sem erro
 
 ---

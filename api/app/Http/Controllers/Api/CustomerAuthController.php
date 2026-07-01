@@ -31,7 +31,7 @@ class CustomerAuthController extends Controller
         return response()->json([
             'customer' => $customer->only(['id', 'name', 'email', 'phone', 'document']),
             'token' => $token->plainTextToken,
-        ])->cookie('njord_token', $token->plainTextToken, 60 * 24 * 30, '/', 'localhost', false, true); // httpOnly
+        ])->cookie('alura_token', $token->plainTextToken, 60 * 24 * 30, '/', 'localhost', false, true); // httpOnly
     }
 
     public function me(Request $request): JsonResponse
@@ -73,6 +73,6 @@ class CustomerAuthController extends Controller
         return response()->json([
             'customer' => $customer->only(['id', 'name', 'email', 'phone', 'document']),
             'token' => $token->plainTextToken,
-        ], 201)->cookie('njord_token', $token->plainTextToken, 60 * 24 * 30, '/', 'localhost', false, true);
+        ], 201)->cookie('alura_token', $token->plainTextToken, 60 * 24 * 30, '/', 'localhost', false, true);
     }
 }

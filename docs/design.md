@@ -1,4 +1,4 @@
-# Design System — Njord
+# Design System — Alura
 
 ## 1. Psicologia das Cores
 

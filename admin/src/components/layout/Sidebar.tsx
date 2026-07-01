@@ -100,7 +100,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMob
       {/* Logo + collapse toggle */}
       <div className="flex items-center h-16 px-4 border-b border-primary-800/50 shrink-0">
         {!collapsed && (
-          <span className="text-xl font-bold tracking-tight animate-fade-in">Njord</span>
+          <span className="text-xl font-bold tracking-tight animate-fade-in">Alura</span>
         )}
         {collapsed && (
           <span className="text-xl font-bold tracking-tight mx-auto">N</span>

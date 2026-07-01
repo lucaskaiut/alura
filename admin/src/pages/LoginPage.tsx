@@ -95,7 +95,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-primary-950 p-4">
       <div className="w-full max-w-sm animate-fade-in">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white">Njord</h1>
+          <h1 className="text-3xl font-bold text-white">Alura</h1>
           <p className="text-primary-300 mt-1 text-sm">Painel administrativo</p>
         </div>
 

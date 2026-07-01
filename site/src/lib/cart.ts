@@ -1,6 +1,6 @@
 import { getApiUrl } from './api';
 
-const SESSION_KEY = 'njord_cart_session';
+const SESSION_KEY = 'alura_cart_session';
 
 function getSessionId(): string {
   if (typeof window === 'undefined') return '';

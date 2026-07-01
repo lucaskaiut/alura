@@ -1,7 +1,7 @@
 import { revalidatePath } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 
-const REVALIDATE_TOKEN = process.env.REVALIDATE_TOKEN || 'njord-revalidate-secret';
+const REVALIDATE_TOKEN = process.env.REVALIDATE_TOKEN || 'alura-revalidate-secret';
 
 export async function POST(req: NextRequest) {
   const token = req.headers.get('x-revalidate-token') || '';

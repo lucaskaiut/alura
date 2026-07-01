@@ -17,11 +17,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const route = await resolveRoute(resolvedPath);
 
   if (route.type === 'not_found') {
-    return { title: 'Página não encontrada - Njord' };
+    return { title: 'Página não encontrada - Alura' };
   }
 
   return {
-    title: route.seo?.meta_title || 'Njord Store',
+    title: route.seo?.meta_title || 'Alura Store',
     description: route.seo?.meta_description || '',
   };
 }
@@ -47,7 +47,7 @@ export default async function CatchAllPage({ params }: Props) {
                   className="bg-primary-700 py-20 text-center text-white"
                 >
                   <h1 className="text-4xl font-bold">
-                    {section.title || 'Bem-vindo à Njord'}
+                    {section.title || 'Bem-vindo à Alura'}
                   </h1>
                   {section.subtitle && (
                     <p className="mt-4 text-lg text-primary-100">
