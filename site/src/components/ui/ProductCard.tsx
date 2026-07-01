@@ -9,7 +9,7 @@ import { addToCart } from '@/lib/cart';
 interface MediaItem {
   id: number;
   path: string;
-  mime_type: string;
+  mime_type?: string;
 }
 
 interface ProductCardProps {
