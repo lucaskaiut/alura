@@ -45,7 +45,7 @@ function TextBlockDisplay(props: Record<string, unknown>) {
   const { content, fontSize, color, textAlign } = props;
   return (
     <div
-      style={{ fontSize: (fontSize as number) || 16, color: (color as string) || "#111827", textAlign: (textAlign as string) || "left", ...marginStyle(props), ...paddingStyle(props) }}
+      style={{ fontSize: (fontSize as number) || 16, color: (color as string) || "#111827", textAlign: ((textAlign as string) || "left") as "left" | "center" | "right", ...marginStyle(props), ...paddingStyle(props) }}
       dangerouslySetInnerHTML={{ __html: String(content || "") }}
     />
   );
@@ -54,7 +54,7 @@ function TextBlockDisplay(props: Record<string, unknown>) {
 function TitleDisplay(props: Record<string, unknown>) {
   const { text, level, align, color } = props;
   const Tag = (level as keyof JSX.IntrinsicElements) || "h2";
-  return <Tag style={{ textAlign: (align as string) || "left", color: (color as string) || "#111827", fontWeight: 700, ...marginStyle(props), ...paddingStyle(props) }}>{String(text || "")}</Tag>;
+  return <Tag style={{ textAlign: ((align as string) || "left") as "left" | "center" | "right", color: (color as string) || "#111827", fontWeight: 700, ...marginStyle(props), ...paddingStyle(props) }}>{String(text || "")}</Tag>;
 }
 
 function ImageBlockDisplay(props: Record<string, unknown>) {
