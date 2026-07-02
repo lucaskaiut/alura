@@ -1,9 +1,22 @@
+import { headers } from 'next/headers';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 const MEDIA_BASE = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:8080';
 
-function getTenantDomain(): string {
+async function getTenantDomain(): Promise<string> {
   if (typeof window !== 'undefined') return window.location.hostname;
-  return process.env.NEXT_PUBLIC_STORE_DOMAIN || 'localhost';
+
+  try {
+    const headersList = await headers();
+    const host = headersList.get('host');
+    if (host) {
+      const domain = host.split(':')[0].toLowerCase();
+      return domain.replace(/^www\./, '');
+    }
+  } catch {
+    // headers() throws if called outside request context
+  }
+  return 'localhost';
 }
 
 export function getApiUrl(): string {
@@ -18,7 +31,7 @@ export function getMediaUrl(media: { id: number | string; path: string } | null 
 export async function fetchTenant<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
-      'X-Tenant-Domain': getTenantDomain(),
+      'X-Tenant-Domain': await getTenantDomain(),
       'Content-Type': 'application/json',
       ...options?.headers,
     },
