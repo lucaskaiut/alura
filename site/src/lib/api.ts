@@ -1,5 +1,3 @@
-import { headers } from 'next/headers';
-
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 const MEDIA_BASE = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:8080';
 
@@ -7,6 +5,7 @@ async function getTenantDomain(): Promise<string> {
   if (typeof window !== 'undefined') return window.location.hostname;
 
   try {
+    const { headers } = await import('next/headers');
     const headersList = await headers();
     const host = headersList.get('host');
     if (host) {
