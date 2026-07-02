@@ -1,7 +1,7 @@
 import { cookies, headers as nextHeaders } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 
-const LARAVEL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const LARAVEL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/api\/?$/, '');
 
 export async function POST(req: NextRequest) {
   const path = req.nextUrl.pathname.replace('/api/auth', '/api/store');

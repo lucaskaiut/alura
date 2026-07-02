@@ -18,7 +18,7 @@ async function fetchProducts(ids: number[]): Promise<StoreProduct[]> {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
     const res = await fetch(
-      `${apiBase}/api/store/products?ids=${ids.join(",")}&per_page=50`,
+      `${apiBase}/store/products?ids=${ids.join(",")}&per_page=50`,
       {
         headers: { "X-Tenant-Domain": tenantDomain },
         next: { revalidate: 60 },

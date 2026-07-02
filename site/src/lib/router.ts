@@ -10,7 +10,7 @@ export interface RouteMatch {
 export async function resolveRoute(path: string): Promise<RouteMatch> {
   try {
     const result = await fetchTenant<RouteMatch>(
-      `/api/router/resolve?path=${encodeURIComponent(path)}`
+      `/router/resolve?path=${encodeURIComponent(path)}`
     );
     return result;
   } catch {

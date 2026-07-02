@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const LARAVEL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const LARAVEL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/api\/?$/, '');
 
 function getTenantDomain(req: NextRequest): string {
   let host = (req.headers.get('host') || '').split(':')[0].toLowerCase();

@@ -3,7 +3,7 @@ const MEDIA_BASE = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:8080';
 
 function getTenantDomain(): string {
   if (typeof window !== 'undefined') return window.location.hostname;
-  return 'localhost';
+  return process.env.NEXT_PUBLIC_STORE_DOMAIN || 'localhost';
 }
 
 export function getApiUrl(): string {

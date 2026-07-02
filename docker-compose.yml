@@ -151,7 +151,7 @@ services:
       - /app/node_modules
       - /app/.next
     environment:
-      - NEXT_PUBLIC_API_URL=http://nginx
+      - NEXT_PUBLIC_API_URL=http://nginx/api
       - WATCHPACK_POLLING=true
     depends_on:
       - nginx
