@@ -1,10 +1,12 @@
 import { useEditor } from "@craftjs/core";
+import { Upload, X } from "lucide-react";
 import { marginSchemas, paddingSchemas } from "./components/marginPadding";
+import { recordImageFile, getFileForNodeProp } from "./imageUpload";
 
 interface PropDef {
   name: string;
   label: string;
-  type: "text" | "textarea" | "select" | "number" | "color" | "richtext";
+  type: "text" | "textarea" | "select" | "number" | "color" | "richtext" | "image";
   options?: { value: string; label: string }[];
   placeholder?: string;
 }
@@ -37,7 +39,7 @@ const componentSchemas: Record<string, PropDef[]> = {
     ...paddingSchemas,
   ],
   ImageBlock: [
-    { name: "src", label: "URL da imagem", type: "text" },
+    { name: "src", label: "Imagem", type: "image" },
     { name: "alt", label: "Texto alternativo", type: "text" },
     { name: "href", label: "Link (opcional)", type: "text" },
     { name: "borderRadius", label: "Bordas arredondadas (px)", type: "number" },
@@ -58,7 +60,7 @@ const componentSchemas: Record<string, PropDef[]> = {
     ...paddingSchemas,
   ],
   Banner: [
-    { name: "imageSrc", label: "URL da imagem", type: "text" },
+    { name: "imageSrc", label: "Imagem", type: "image" },
     { name: "title", label: "Título", type: "text" },
     { name: "subtitle", label: "Subtítulo", type: "text" },
     { name: "buttonLabel", label: "Texto do botão", type: "text" },
@@ -194,6 +196,48 @@ export default function SettingsPanel() {
                 placeholder={prop.placeholder}
                 rows={4}
               />
+            ) : prop.type === "image" ? (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  id={id}
+                  value={String(value ?? "")}
+                  onChange={(e) => actions.setProp(selected.id, (props: Record<string, unknown>) => { props[prop.name] = e.target.value; })}
+                  className={inputClass}
+                  placeholder="URL da imagem"
+                />
+                <label className="flex items-center gap-1.5 text-xs text-primary-600 cursor-pointer hover:text-primary-700">
+                  <Upload size={14} />
+                  <span>Upload</span>
+                  <input
+                    key={`${selected.id}-${prop.name}`}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      recordImageFile(selected.id, prop.name, file);
+                      const blobUrl = URL.createObjectURL(file);
+                      actions.setProp(selected.id, (props: Record<string, unknown>) => { props[prop.name] = blobUrl; });
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                {value && (
+                  <div className="relative group rounded overflow-hidden border border-border">
+                    <img src={String(value)} alt="" className="max-h-32 w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => actions.setProp(selected.id, (props: Record<string, unknown>) => { props[prop.name] = ""; })}
+                      className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Remover imagem"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : prop.type === "color" ? (
               <div className="flex gap-2">
                 <input

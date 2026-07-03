@@ -7,6 +7,7 @@ import { z } from "zod";
 import { ArrowLeft, Save } from "lucide-react";
 import api from "../lib/api";
 import CraftEditor, { getCraftEditorJson } from "../components/craft/CraftEditor";
+import { getImageFiles } from "../components/craft/imageUpload";
 import type { CraftData } from "../components/craft/types";
 
 const pageSchema = z.object({
@@ -18,6 +19,43 @@ const pageSchema = z.object({
 });
 
 type PageForm = z.infer<typeof pageSchema>;
+
+const API_URL = import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:8080";
+
+async function processImageUploads(content: string): Promise<string> {
+  const imageFiles = getImageFiles();
+  let parsed: CraftData;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return content;
+  }
+
+  let changed = false;
+
+  for (const [nodeId, node] of Object.entries(parsed)) {
+    const props = node.props;
+    if (!props) continue;
+
+    for (const propName of ["src", "imageSrc"]) {
+      const value = props[propName];
+      if (typeof value === "string" && value.startsWith("blob:")) {
+        const file = imageFiles.get(`${nodeId}:${propName}`);
+        if (file) {
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await api.post("/media", fd, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          props[propName] = `${API_URL}/storage/${res.data.path}`;
+          changed = true;
+        }
+      }
+    }
+  }
+
+  return changed ? JSON.stringify(parsed) : content;
+}
 
 export default function PageFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -69,8 +107,10 @@ export default function PageFormPage() {
   }, [id, isEditing, reset, navigate]);
 
   const createMutation = useMutation({
-    mutationFn: async (data: PageForm & { content: string | null }) =>
-      (await api.post("/pages", data)).data,
+    mutationFn: async (data: PageForm & { content: string | null }) => {
+      const content = data.content ? await processImageUploads(data.content) : null;
+      return (await api.post("/pages", { ...data, content })).data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pages"] });
       navigate("/pages");
@@ -81,8 +121,10 @@ export default function PageFormPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ pageId, data }: { pageId: number; data: PageForm & { content: string | null } }) =>
-      (await api.put(`/pages/${pageId}`, data)).data,
+    mutationFn: async ({ pageId, data }: { pageId: number; data: PageForm & { content: string | null } }) => {
+      const content = data.content ? await processImageUploads(data.content) : null;
+      return (await api.put(`/pages/${pageId}`, { ...data, content })).data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pages"] });
       navigate("/pages");
