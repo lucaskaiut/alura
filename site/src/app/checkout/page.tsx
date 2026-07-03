@@ -51,7 +51,7 @@ function IdentificationStep({ onNext }: { onNext: (customer: CustomerInfo) => vo
     if (regPw !== regPw2) { setError('Senhas não conferem.'); return; }
     if (regPw.length < 6) { setError('Mínimo 6 caracteres.'); return; }
     setLoading(true);
-    try { const data = await apiPost('/api/auth/register', { name: regName, email: regEmail, password: regPw, password_confirmation: regPw2 }); onNext(data.customer); }
+    try { const data = await apiPost<{ customer: CustomerInfo }>('/api/auth/register', { name: regName, email: regEmail, password: regPw, password_confirmation: regPw2 }); onNext(data.customer); }
     catch (err) { setError(err instanceof Error ? err.message : 'Erro'); }
     finally { setLoading(false); }
   };
