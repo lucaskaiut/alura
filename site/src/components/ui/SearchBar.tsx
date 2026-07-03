@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search } from 'lucide-react';
+import { apiFetch } from '@/lib/client-fetch';
 
 export default function SearchBar() {
   const [query, setQuery] = useState('');
@@ -18,14 +19,9 @@ export default function SearchBar() {
     }
 
     try {
-      const res = await fetch(`/api/store/products/suggestions?q=${encodeURIComponent(q)}`, {
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSuggestions(data || []);
-        setShowSuggestions((data || []).length > 0);
-      }
+      const data = await apiFetch<string[]>(`/api/store/products/suggestions?q=${encodeURIComponent(q)}`);
+      setSuggestions(data || []);
+      setShowSuggestions((data || []).length > 0);
     } catch {
       setSuggestions([]);
     }

@@ -1,4 +1,5 @@
 import { getApiUrl } from './api';
+import { apiFetch } from './client-fetch';
 
 const SESSION_KEY = 'alura_cart_session';
 
@@ -12,17 +13,8 @@ function getSessionId(): string {
   return id;
 }
 
-// All API calls go through Next.js BFF (same domain, middleware adds auth cookie)
 async function fetchCart<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: 'Erro' }));
-    throw new Error(err.message || 'Erro');
-  }
-  return res.json();
+  return apiFetch<T>(path, options);
 }
 
 export interface CartItem {

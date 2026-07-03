@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Check, EyeOff } from 'lucide-react';
+import { apiFetch } from '@/lib/client-fetch';
 
 const steps = [
   { id: 1, name: 'Identificação' },
@@ -35,9 +36,7 @@ function IdentificationStep({ onNext }: { onNext: (customer: CustomerInfo) => vo
   const [regPw2, setRegPw2] = useState('');
 
   const apiPost = async (path: string, body: Record<string, unknown>) => {
-    const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!res.ok) { const err = await res.json().catch(() => ({ message: 'Erro' })); throw new Error(err.message || 'Erro'); }
-    return res.json();
+    return apiFetch(path, { method: 'POST', body: JSON.stringify(body) });
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -121,11 +120,9 @@ function AddressStep({ customer, onNext, onBack }: {
   useEffect(() => {
     if (!customer) return;
     let cancelled = false;
-    fetch('/api/store/addresses')
-      .then(r => r.json())
-      .then(data => {
+    apiFetch<SavedAddress[]>('/api/store/addresses')
+      .then(list => {
         if (cancelled) return;
-        const list: SavedAddress[] = data || [];
         setAddresses(list);
         const def = list.find(a => a.is_default);
         if (def) setSelectedId(def.id);
@@ -185,18 +182,14 @@ function AddressStep({ customer, onNext, onBack }: {
     try {
       let addr: SavedAddress;
       if (editingId) {
-        const res = await fetch(`/api/store/addresses/${editingId}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        addr = await apiFetch<SavedAddress>(`/api/store/addresses/${editingId}`, {
+          method: 'PUT', body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error('Erro ao atualizar.');
-        addr = await res.json();
         setAddresses(prev => (prev ?? []).map(a => a.id === editingId ? addr : a));
       } else {
-        const res = await fetch('/api/store/addresses', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        addr = await apiFetch<SavedAddress>('/api/store/addresses', {
+          method: 'POST', body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error('Erro ao salvar.');
-        addr = await res.json();
         setAddresses(prev => [...(prev ?? []), addr]);
       }
       setSelectedId(addr.id);
@@ -212,7 +205,7 @@ function AddressStep({ customer, onNext, onBack }: {
 
   const handleDelete = async (id: number) => {
     try {
-      await fetch(`/api/store/addresses/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/store/addresses/${id}`, { method: 'DELETE' });
       setAddresses(prev => (prev ?? []).filter(a => a.id !== id));
       if (selectedId === id) setSelectedId(null);
     } catch { setError('Erro ao excluir endereço.'); }
@@ -220,10 +213,8 @@ function AddressStep({ customer, onNext, onBack }: {
 
   const handleSetDefault = async (id: number) => {
     try {
-      const res = await fetch(`/api/store/addresses/${id}/default`, { method: 'POST' });
-      if (res.ok) {
-        setAddresses(prev => (prev ?? []).map(a => ({ ...a, is_default: a.id === id })));
-      }
+      await apiFetch(`/api/store/addresses/${id}/default`, { method: 'POST' });
+      setAddresses(prev => (prev ?? []).map(a => ({ ...a, is_default: a.id === id })));
     } catch { setError('Erro ao definir endereço padrão.'); }
   };
 
@@ -345,8 +336,8 @@ function ShippingStep({ cep, onNext, onBack }: { cep: string; onNext: (method: s
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch('/api/checkout/shipping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cep, session_id: getSessionId() }) })
-      .then(r => r.json()).then(d => setOptions(d.options || [])).catch(() => setError('Erro ao carregar fretes')).finally(() => setLoading(false));
+    apiFetch<{ options: { service_code: string; name: string; price: number; estimated_days?: number }[] }>('/api/checkout/shipping', { method: 'POST', body: JSON.stringify({ cep, session_id: getSessionId() }) })
+      .then(d => setOptions(d.options || [])).catch(() => setError('Erro ao carregar fretes')).finally(() => setLoading(false));
   }, [cep]);
 
   if (loading) return <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-primary-500/30 border-t-primary-500 rounded-full animate-spin" /></div>;
@@ -414,8 +405,7 @@ function PaymentStep({ address, addressId, customerId, shippingMethod, shippingC
   const [installments, setInstallments] = useState(1);
 
   useEffect(() => {
-    fetch('/api/checkout/payment-methods')
-      .then(r => r.json())
+    apiFetch<{ methods: any[] }>('/api/checkout/payment-methods')
       .then(d => setMethods(d.methods || []))
       .catch(() => setError('Erro ao carregar formas de pagamento.'))
       .finally(() => setMethodsLoading(false));
@@ -477,7 +467,7 @@ function PaymentStep({ address, addressId, customerId, shippingMethod, shippingC
 
       const res = await fetch('/api/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Tenant-Domain': window.location.hostname },
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -724,7 +714,7 @@ export default function CheckoutPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    fetch('/api/store/me')
+    fetch('/api/store/me', { headers: { 'X-Tenant-Domain': window.location.hostname } })
       .then(r => r.json())
       .then(d => {
         if (d.authenticated && d.customer) {

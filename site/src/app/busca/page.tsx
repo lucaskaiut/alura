@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import ProductGrid from '@/components/ui/ProductGrid';
+import { apiFetch } from '@/lib/client-fetch';
 import { X, SlidersHorizontal } from 'lucide-react';
 
 interface Facet {
@@ -250,17 +251,12 @@ function SearchResults() {
 
     void (async () => {
       try {
-        const res = await fetch(`/api/store/products?${params.toString()}`, {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        const data = await apiFetch<SearchResponse>(`/api/store/products?${params.toString()}`);
         if (cancelled) return;
-        if (res.ok) {
-          const data: SearchResponse = await res.json();
-          setResults(data.data || []);
-          setFacets(data.facets || null);
-          setTotal(data.total || 0);
-          setLastPage(data.last_page || 1);
-        }
+        setResults(data.data || []);
+        setFacets(data.facets || null);
+        setTotal(data.total || 0);
+        setLastPage(data.last_page || 1);
       } catch {
         if (!cancelled) setResults([]);
       } finally {
