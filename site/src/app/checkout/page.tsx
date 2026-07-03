@@ -41,7 +41,7 @@ function IdentificationStep({ onNext }: { onNext: (customer: CustomerInfo) => vo
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setLoading(true);
-    try { const data = await apiPost<{ customer: unknown }>('/api/auth/login', { email: loginEmail, password: loginPw }); onNext(data.customer); }
+    try { const data = await apiPost<{ customer: CustomerInfo }>('/api/auth/login', { email: loginEmail, password: loginPw }); onNext(data.customer); }
     catch (err) { setError(err instanceof Error ? err.message : 'Erro'); }
     finally { setLoading(false); }
   };
