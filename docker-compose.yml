@@ -33,6 +33,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      opensearch:
+        condition: service_started
     networks:
       - alura
     restart: unless-stopped
@@ -51,6 +53,7 @@ services:
     depends_on:
       - mysql
       - redis
+      - opensearch
     networks:
       - alura
     restart: unless-stopped
@@ -112,6 +115,42 @@ services:
       timeout: 3s
       retries: 5
 
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: alura-opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "DISABLE_SECURITY_PLUGIN=true"
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+    ports:
+      - "${OPENSEARCH_PORT:-9200}:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    networks:
+      - alura
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: alura-opensearch-dashboards
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "${OPENSEARCH_DASHBOARDS_PORT:-5601}:5601"
+    depends_on:
+      - opensearch
+    networks:
+      - alura
+    restart: unless-stopped
+
   mailhog:
     image: mailhog/mailhog:latest
     container_name: alura-mailhog
@@ -162,6 +201,7 @@ services:
 volumes:
   mysql_data:
   redis_data:
+  opensearch_data:
 
 networks:
   alura:

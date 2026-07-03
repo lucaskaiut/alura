@@ -70,6 +70,7 @@ Route::middleware(['tenant', 'throttle:300,1'])->group(function () {
 
     // Public store: products & categories (no auth, tenant via domain)
     Route::get('/store/products', [ProductController::class, 'storeIndex']);
+    Route::get('/store/products/suggestions', [ProductController::class, 'suggestions']);
     Route::get('/store/products/{product:slug}', [ProductController::class, 'storeShow']);
 
     // Store settings (public, for navbar menu)
