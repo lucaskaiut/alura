@@ -35,13 +35,13 @@ function IdentificationStep({ onNext }: { onNext: (customer: CustomerInfo) => vo
   const [regPw, setRegPw] = useState('');
   const [regPw2, setRegPw2] = useState('');
 
-  const apiPost = async (path: string, body: Record<string, unknown>) => {
-    return apiFetch(path, { method: 'POST', body: JSON.stringify(body) });
+  const apiPost = async <T = unknown>(path: string, body: Record<string, unknown>) => {
+    return apiFetch<T>(path, { method: 'POST', body: JSON.stringify(body) });
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setLoading(true);
-    try { const data = await apiPost('/api/auth/login', { email: loginEmail, password: loginPw }); onNext(data.customer); }
+    try { const data = await apiPost<{ customer: unknown }>('/api/auth/login', { email: loginEmail, password: loginPw }); onNext(data.customer); }
     catch (err) { setError(err instanceof Error ? err.message : 'Erro'); }
     finally { setLoading(false); }
   };
