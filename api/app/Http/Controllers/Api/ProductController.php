@@ -30,7 +30,7 @@ class ProductController extends Controller
 
     public function show(Product $product): JsonResponse
     {
-        return response()->json($product->load(['brand', 'category', 'categories', 'variants', 'media', 'stock']));
+        return response()->json($product->load(['brand', 'category', 'categories', 'variants.attributeValues.attribute', 'variants.media', 'media']));
     }
 
     public function update(UpdateProductRequest $request, Product $product): JsonResponse
@@ -54,7 +54,7 @@ class ProductController extends Controller
 
     public function storeShow(Product $product): JsonResponse
     {
-        return response()->json($product->load(['brand', 'category', 'variants', 'media', 'stock']));
+        return response()->json($product->load(['brand', 'category', 'variants.attributeValues.attribute', 'variants.media', 'media']));
     }
 
     public function suggestions(Request $request): JsonResponse

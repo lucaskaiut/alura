@@ -77,7 +77,7 @@ export default async function CatchAllPage({ params }: Props) {
 
     case 'product': {
       const productData = (route.data as { product?: Record<string, unknown> }).product;
-      return <ProductDetail product={(productData || route.data) as { id: string; name: string; price: string | number; sku?: string; media?: { id: number; path: string; mime_type: string }[]; full_desc?: string; short_desc?: string; description?: string; variants?: { id: string; name: string; values: string[] }[] }} />;
+      return <ProductDetail product={(productData || route.data) as { id: string; name: string; price: string | number; sku?: string; is_variable?: boolean; media?: { id: number; path: string; mime_type: string }[]; full_desc?: string; short_desc?: string; variants?: { id: number; sku?: string; price?: string; attribute_values?: { id: number; value: string; attribute?: { id: number; name: string } }[] }[] }} />;
     }
 
     case 'category': {

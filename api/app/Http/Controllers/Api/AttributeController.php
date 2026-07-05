@@ -21,6 +21,10 @@ class AttributeController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'slug' => 'required|string|max:255',
+            'type' => 'nullable|string|max:50',
+            'is_filterable' => 'boolean',
+            'is_variation' => 'boolean',
+            'position' => 'nullable|integer',
             'status' => 'nullable|boolean',
         ]);
 
@@ -41,6 +45,10 @@ class AttributeController extends Controller
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'slug' => 'sometimes|string|max:255',
+            'type' => 'sometimes|string|max:50',
+            'is_filterable' => 'boolean',
+            'is_variation' => 'boolean',
+            'position' => 'nullable|integer',
             'status' => 'sometimes|boolean',
         ]);
 

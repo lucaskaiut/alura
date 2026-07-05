@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, X } from "lucide-react";
 import api from "../lib/api";
 import DataTable, { type Column } from "../components/ui/DataTable";
 import Modal from "../components/ui/Modal";
@@ -26,6 +26,7 @@ const attributeSchema = z.object({
   type: z.string().min(1, "Tipo é obrigatório"),
   is_filterable: z.boolean(),
   is_variation: z.boolean(),
+  position: z.number().optional(),
   status: z.boolean(),
 });
 
@@ -36,6 +37,9 @@ export default function AttributesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Attribute | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [values, setValues] = useState<{ id: number; value: string }[]>([]);
+  const [newValue, setNewValue] = useState("");
+  const [valuesLoading, setValuesLoading] = useState(false);
 
   const { data: apiData, isLoading } = useQuery({
     queryKey: ["attributes"],
@@ -54,7 +58,7 @@ export default function AttributesPage() {
     formState: { errors },
   } = useForm<AttributeForm>({
     resolver: zodResolver(attributeSchema),
-    defaultValues: { status: true, is_filterable: false, is_variation: false },
+    defaultValues: { status: true, is_filterable: false, is_variation: false, position: 0 },
   });
 
   useEffect(() => {
@@ -65,10 +69,11 @@ export default function AttributesPage() {
         type: editing.type,
         is_filterable: editing.is_filterable,
         is_variation: editing.is_variation,
+        position: editing.position ?? 0,
         status: editing.status,
       });
     } else {
-      reset({ name: "", slug: "", type: "text", is_filterable: false, is_variation: false, status: true });
+      reset({ name: "", slug: "", type: "text", is_filterable: false, is_variation: false, position: 0, status: true });
     }
   }, [editing, reset]);
 
@@ -106,6 +111,45 @@ export default function AttributesPage() {
     },
   });
 
+  const fetchValues = async (attributeId: number) => {
+    setValuesLoading(true);
+    setValues([]);
+    try {
+      const res = await api.get(`/attributes/${attributeId}/values`);
+      setValues(res.data?.data ?? res.data ?? []);
+    } catch {
+      setValues([]);
+    } finally {
+      setValuesLoading(false);
+    }
+  };
+
+  const addValueMutation = useMutation({
+    mutationFn: async ({ attributeId, value }: { attributeId: number; value: string }) => {
+      const res = await api.post(`/attributes/${attributeId}/values`, { value });
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      fetchValues(variables.attributeId);
+    },
+  });
+
+  const deleteValueMutation = useMutation({
+    mutationFn: async ({ attributeId, valueId }: { attributeId: number; valueId: number }) => {
+      await api.delete(`/attributes/${attributeId}/values/${valueId}`);
+    },
+    onSuccess: (_data, variables) => {
+      fetchValues(variables.attributeId);
+    },
+  });
+
+  const handleAddValue = () => {
+    const trimmed = newValue.trim();
+    if (!trimmed || !editing) return;
+    addValueMutation.mutate({ attributeId: editing.id, value: trimmed });
+    setNewValue("");
+  };
+
   const onSubmit = (data: AttributeForm) => {
     if (editing) {
       updateMutation.mutate({ id: editing.id, data });
@@ -116,7 +160,10 @@ export default function AttributesPage() {
 
   const openEdit = (attr: Attribute) => {
     setEditing(attr);
+    setValues([]);
+    setNewValue("");
     setModalOpen(true);
+    fetchValues(attr.id);
   };
 
   const columns: Column<Attribute>[] = [
@@ -254,6 +301,60 @@ export default function AttributesPage() {
               />
               Variação
             </label>
+          </div>
+
+          {editing && (
+            <div>
+              <label className="block text-sm font-medium text-text mb-2">Valores</label>
+              {valuesLoading ? (
+                <p className="text-xs text-text-muted">Carregando...</p>
+              ) : values.length > 0 ? (
+                <div className="space-y-1 mb-2">
+                  {values.map((v) => (
+                    <div key={v.id} className="flex items-center justify-between bg-bg px-3 py-1.5 rounded-lg text-sm">
+                      <span className="text-text">{v.value}</span>
+                      <button
+                        type="button"
+                        onClick={() => deleteValueMutation.mutate({ attributeId: editing.id, valueId: v.id })}
+                        className="p-0.5 text-text-muted hover:text-danger-500 transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-text-muted mb-2">Nenhum valor cadastrado.</p>
+              )}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newValue}
+                  onChange={(e) => setNewValue(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddValue())}
+                  placeholder="Novo valor (ex: Preto)"
+                  className="flex-1 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddValue}
+                  disabled={addValueMutation.isPending}
+                  className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Posição</label>
+            <input
+              type="number"
+              {...register("position", { valueAsNumber: true })}
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors"
+              placeholder="0"
+            />
           </div>
 
           <div>

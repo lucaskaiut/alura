@@ -8,6 +8,8 @@ interface StoreProduct {
   name: string;
   slug: string;
   price: number;
+  is_variable?: boolean;
+  variants?: { id: number; price?: string; attribute_values?: { id: number; value: string; attribute?: { id: number; name: string } }[] }[];
   media?: { id: number; path: string }[];
 }
 
@@ -64,6 +66,8 @@ async function ProductGridContent({
             name={p.name}
             slug={p.slug}
             price={p.price}
+            is_variable={p.is_variable}
+            variants={p.variants}
             media={p.media}
           />
         ))}

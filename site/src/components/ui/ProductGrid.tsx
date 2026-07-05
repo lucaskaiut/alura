@@ -8,11 +8,19 @@ interface MediaItem {
   mime_type?: string;
 }
 
+interface VariantSummary {
+  id: number;
+  price?: string;
+  attribute_values?: { id: number; value: string; attribute?: { id: number; name: string } }[];
+}
+
 interface Product {
   id: number | string;
   name: string;
   slug?: string;
   price: string | number;
+  is_variable?: boolean;
+  variants?: VariantSummary[];
   media?: MediaItem[];
   images?: { url: string; alt: string }[];
   image?: string;
@@ -30,6 +38,8 @@ export default function ProductGrid({ products }: { products: Product[] }) {
             name={product.name}
             slug={product.slug}
             price={price}
+            is_variable={product.is_variable}
+            variants={product.variants}
             media={product.media as MediaItem[]}
             image={product.images?.[0]?.url || product.image}
           />

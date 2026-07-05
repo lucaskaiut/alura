@@ -16,6 +16,10 @@ class Attribute extends Model
         'tenant_id',
         'name',
         'slug',
+        'type',
+        'is_filterable',
+        'is_variation',
+        'position',
         'status',
     ];
 
@@ -23,6 +27,9 @@ class Attribute extends Model
     {
         return [
             'status' => 'boolean',
+            'is_filterable' => 'boolean',
+            'is_variation' => 'boolean',
+            'position' => 'integer',
         ];
     }
 

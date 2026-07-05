@@ -8,7 +8,7 @@ use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\CouponController;
-use App\Http\Controllers\Api\CustomerAddressController;
+use App\Http\Controllers\Api\DesignSettingController;
 use App\Http\Controllers\Api\CustomerAuthController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\EmailTemplateController;
@@ -56,6 +56,8 @@ Route::middleware(['tenant', 'throttle:300,1'])->group(function () {
     Route::put('/cart/items/{cartItem}', [CartController::class, 'updateItem']);
     Route::delete('/cart/items/{cartItem}', [CartController::class, 'removeItem']);
     Route::delete('/cart', [CartController::class, 'clear']);
+    Route::post('/cart/coupon', [CartController::class, 'applyCoupon']);
+    Route::delete('/cart/coupon', [CartController::class, 'removeCoupon']);
     Route::post('/cart/validate', [CartController::class, 'validateCart']);
     Route::post('/coupons/validate', [CouponController::class, 'validate']);
     Route::post('/coupons/apply', [CouponController::class, 'apply']);
@@ -73,12 +75,16 @@ Route::middleware(['tenant', 'throttle:300,1'])->group(function () {
     Route::get('/store/products/suggestions', [ProductController::class, 'suggestions']);
     Route::get('/store/products/{product:slug}', [ProductController::class, 'storeShow']);
 
-    // Store settings (public, for navbar menu)
-    Route::get('/store/settings', fn () => response()->json([
-        'menu' => \App\Models\MenuItem::toTree(
-            \App\Models\MenuItem::where('active', true)->orderBy('position')->get()
-        ),
-    ]));
+    // Store settings (public, for navbar menu + design)
+    Route::get('/store/settings', function () {
+        $design = \App\Models\DesignSetting::first();
+        return response()->json([
+            'menu' => \App\Models\MenuItem::toTree(
+                \App\Models\MenuItem::where('active', true)->orderBy('position')->get()
+            ),
+            'design' => $design?->settings ?? \App\Models\DesignSetting::defaultSettings(),
+        ]);
+    });
 
     // Customer auth — stricter rate limits
     Route::middleware('throttle:60,1')->post('/store/login', [CustomerAuthController::class, 'login']);
@@ -156,4 +162,9 @@ Route::middleware(['auth:sanctum', 'verify.tenant', 'tenant', 'throttle:300,1'])
     Route::get('shipping-rules/gateways', [ShippingRuleController::class, 'gateways']);
     Route::apiResource('shipping-rules', ShippingRuleController::class);
     Route::apiResource('email-templates', EmailTemplateController::class);
+
+    // Design Settings
+    Route::get('design-settings', [DesignSettingController::class, 'show']);
+    Route::put('design-settings', [DesignSettingController::class, 'update']);
+    Route::post('design-settings/reset', [DesignSettingController::class, 'reset']);
 });

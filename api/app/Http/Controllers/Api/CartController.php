@@ -3,34 +3,43 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Product;
-use App\Models\Stock;
 use App\Services\AuditService;
-use Illuminate\Support\Str;
+use App\Services\CartService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CartController extends Controller
 {
-    public function __construct(private AuditService $auditService) {}
+    public function __construct(
+        private AuditService $auditService,
+        private CartService $cartService,
+    ) {}
 
     public function get(Request $request): JsonResponse
     {
-        $cart = $this->resolveCart($request);
+        $cart = $this->cartService->resolveCart($request);
 
         if (!$cart) {
-            return response()->json(['items' => [], 'total' => 0]);
+            return response()->json(['items' => [], 'subtotal' => 0, 'discount' => 0, 'total' => 0, 'coupon' => null]);
         }
 
-        $cart->load(['items.product.media', 'items.variant']);
+        $cart->load(['items.product.media', 'items.variant.attributeValues', 'items.variant.media']);
 
         return response()->json([
             'id' => $cart->id,
             'items' => $cart->items,
-            'total' => $this->calculateTotal($cart),
+            'subtotal' => $this->cartService->calculateSubtotal($cart),
+            'discount' => (float) $cart->discount,
+            'total' => $this->cartService->calculateTotal($cart),
+            'coupon' => $cart->coupon_code ? [
+                'id' => $cart->coupon_id,
+                'code' => $cart->coupon_code,
+                'type' => $cart->coupon_type,
+                'discount' => (float) $cart->discount,
+            ] : null,
         ]);
     }
 
@@ -44,15 +53,12 @@ class CartController extends Controller
 
         $quantity = $validated['quantity'] ?? 1;
         $product = Product::with('variants', 'media')->findOrFail($validated['product_id']);
-
         $sessionId = $request->input('session_id') ?? $request->header('X-Session-Id');
 
-        // Validate product
         if (!$product->status) {
             return response()->json(['message' => 'Produto indisponível.'], 422);
         }
 
-        // Determine price and variant
         $variant = null;
         $price = $product->price;
 
@@ -70,21 +76,14 @@ class CartController extends Controller
 
         try {
             $cart = DB::transaction(function () use ($request, $validated, $quantity, $product, $variant, $price, $sessionId) {
-                // Validate stock with lockForUpdate to prevent race conditions
-                $stock = $variant
-                    ? Stock::where('product_variant_id', $variant->id)->lockForUpdate()->first()
-                    : Stock::where('product_id', $product->id)->lockForUpdate()->first();
-
-                $available = $stock ? max(0, $stock->quantity - $stock->reserved) : 0;
+                $available = $variant ? (int) $variant->stock : (int) $product->stock;
 
                 if ($available <= 0) {
                     throw new \RuntimeException('Produto sem estoque.');
                 }
 
-                // Get or create cart
-                $cart = $this->resolveOrCreateCart($request);
+                $cart = $this->cartService->resolveOrCreateCart($request);
 
-                // Check existing
                 $existingItem = $cart->items()
                     ->where('product_id', $validated['product_id'])
                     ->where('variant_id', $validated['variant_id'] ?? null)
@@ -95,10 +94,7 @@ class CartController extends Controller
                     if ($newQty > $available) {
                         throw new \RuntimeException("Estoque insuficiente. Disponível: {$available}");
                     }
-                    $existingItem->update([
-                        'quantity' => $newQty,
-                        'price_at_time' => $price,
-                    ]);
+                    $existingItem->update(['quantity' => $newQty, 'price_at_time' => $price]);
                 } else {
                     if ($quantity > $available) {
                         throw new \RuntimeException("Estoque insuficiente. Disponível: {$available}");
@@ -110,6 +106,8 @@ class CartController extends Controller
                         'price_at_time' => $price,
                     ]);
                 }
+
+                $this->cartService->revalidateCoupon($cart);
 
                 $this->auditService->log('cart_add_item', [
                     'session_id' => $sessionId,
@@ -126,12 +124,20 @@ class CartController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $cart->load(['items.product.media', 'items.variant']);
+        $cart->load(['items.product.media', 'items.variant.attributeValues', 'items.variant.media']);
 
         return response()->json([
             'id' => $cart->id,
             'items' => $cart->items,
-            'total' => $this->calculateTotal($cart),
+            'subtotal' => $this->cartService->calculateSubtotal($cart),
+            'discount' => (float) $cart->discount,
+            'total' => $this->cartService->calculateTotal($cart),
+            'coupon' => $cart->coupon_code ? [
+                'id' => $cart->coupon_id,
+                'code' => $cart->coupon_code,
+                'type' => $cart->coupon_type,
+                'discount' => (float) $cart->discount,
+            ] : null,
         ]);
     }
 
@@ -143,18 +149,11 @@ class CartController extends Controller
             return response()->json(['message' => 'Acesso não autorizado.'], 403);
         }
 
-        $validated = $request->validate([
-            'quantity' => 'required|integer|min:1|max:99',
-        ]);
+        $validated = $request->validate(['quantity' => 'required|integer|min:1|max:99']);
 
         $product = $cartItem->product;
         $variant = $cartItem->variant;
-
-        $stock = $variant
-            ? Stock::where('product_variant_id', $variant->id)->lockForUpdate()->first()
-            : Stock::where('product_id', $product->id)->lockForUpdate()->first();
-
-        $available = $stock ? max(0, $stock->quantity - $stock->reserved) : 0;
+        $available = $variant ? (int) $variant->stock : (int) $product->stock;
 
         if ($validated['quantity'] > $available) {
             return response()->json(['message' => "Estoque insuficiente. Disponível: {$available}"], 422);
@@ -162,11 +161,21 @@ class CartController extends Controller
 
         $cartItem->update(['quantity' => $validated['quantity']]);
 
-        $cart = $cartItem->cart->load(['items.product.media', 'items.variant']);
+        $cart = $cartItem->cart;
+        $this->cartService->revalidateCoupon($cart);
+        $cart->load(['items.product.media', 'items.variant.attributeValues', 'items.variant.media']);
 
         return response()->json([
             'items' => $cart->items,
-            'total' => $this->calculateTotal($cart),
+            'subtotal' => $this->cartService->calculateSubtotal($cart),
+            'discount' => (float) $cart->discount,
+            'total' => $this->cartService->calculateTotal($cart),
+            'coupon' => $cart->coupon_code ? [
+                'id' => $cart->coupon_id,
+                'code' => $cart->coupon_code,
+                'type' => $cart->coupon_type,
+                'discount' => (float) $cart->discount,
+            ] : null,
         ]);
     }
 
@@ -181,37 +190,74 @@ class CartController extends Controller
         $cart = $cartItem->cart;
         $cartItem->delete();
 
-        $cart->load(['items.product.media', 'items.variant']);
+        $this->cartService->revalidateCoupon($cart);
+        $cart->load(['items.product.media', 'items.variant.attributeValues', 'items.variant.media']);
 
         return response()->json([
             'items' => $cart->items,
-            'total' => $this->calculateTotal($cart),
+            'subtotal' => $this->cartService->calculateSubtotal($cart),
+            'discount' => (float) $cart->discount,
+            'total' => $this->cartService->calculateTotal($cart),
+            'coupon' => $cart->coupon_code ? [
+                'id' => $cart->coupon_id,
+                'code' => $cart->coupon_code,
+                'type' => $cart->coupon_type,
+                'discount' => (float) $cart->discount,
+            ] : null,
         ]);
     }
 
     public function clear(Request $request): JsonResponse
     {
-        $cart = $this->resolveCart($request);
-
+        $cart = $this->cartService->resolveCart($request);
         if ($cart) {
+            $this->cartService->removeCoupon($cart);
             $cart->items()->delete();
         }
-
-        return response()->json(['items' => [], 'total' => 0]);
+        return response()->json(['items' => [], 'subtotal' => 0, 'discount' => 0, 'total' => 0, 'coupon' => null]);
     }
 
-    /** Validate cart: re-check prices, stock, product status. Called before checkout. */
+    public function applyCoupon(Request $request): JsonResponse
+    {
+        $request->validate(['code' => 'required|string']);
+
+        $cart = $this->cartService->resolveOrCreateCart($request);
+
+        if (!$cart->items->count()) {
+            return response()->json(['message' => 'Carrinho vazio.'], 422);
+        }
+
+        try {
+            $result = $this->cartService->applyCoupon($cart, $request->code);
+            return response()->json(['applied' => true, ...$result]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function removeCoupon(Request $request): JsonResponse
+    {
+        $cart = $this->cartService->resolveCart($request);
+        if ($cart) {
+            $this->cartService->removeCoupon($cart);
+        }
+        return response()->json(['removed' => true, 'coupon' => null, 'discount' => 0]);
+    }
+
     public function validateCart(Request $request): JsonResponse
     {
-        $cart = $this->resolveCart($request);
+        $cart = $this->cartService->resolveCart($request);
 
         if (!$cart || $cart->items->isEmpty()) {
-            return response()->json(['valid' => false, 'message' => 'Carrinho vazio.', 'items' => [], 'total' => 0]);
+            return response()->json(['valid' => false, 'message' => 'Carrinho vazio.', 'items' => [], 'subtotal' => 0, 'discount' => 0, 'total' => 0]);
+        }
+
+        if ($cart->coupon_id) {
+            $this->cartService->revalidateCoupon($cart);
+            $cart->refresh();
         }
 
         $warnings = [];
-        $validItems = [];
-
         foreach ($cart->items as $item) {
             $product = $item->product;
             $variant = $item->variant;
@@ -222,8 +268,7 @@ class CartController extends Controller
             }
 
             $currentPrice = $variant ? ($variant->price ?? $product->price) : $product->price;
-            $stock = $variant ? $variant->stock()->first() : $product->stock()->first();
-            $available = $stock ? max(0, $stock->quantity - $stock->reserved) : 0;
+            $available = $variant ? (int) $variant->stock : (int) $product->stock;
 
             if ($available <= 0) {
                 $warnings[] = "{$product->name}: sem estoque.";
@@ -235,63 +280,29 @@ class CartController extends Controller
                 $warnings[] = "{$product->name}: quantidade ajustada para {$qty}.";
             }
 
-            // Update price if changed
             if (abs((float) $item->price_at_time - (float) $currentPrice) > 0.01) {
                 $item->update(['price_at_time' => $currentPrice, 'quantity' => $qty]);
                 $warnings[] = "{$product->name}: preço atualizado.";
             } elseif ($qty !== $item->quantity) {
                 $item->update(['quantity' => $qty]);
             }
-
-            $validItems[] = $item;
         }
 
-        $cart->refresh()->load(['items.product.media', 'items.variant']);
+        $cart->refresh()->load(['items.product.media', 'items.variant.attributeValues', 'items.variant.media']);
 
         return response()->json([
             'valid' => empty($warnings),
             'warnings' => $warnings,
             'items' => $cart->items,
-            'total' => $this->calculateTotal($cart),
-        ]);
-    }
-
-    private function calculateTotal(Cart $cart): string
-    {
-        $total = '0';
-        foreach ($cart->items as $item) {
-            $total = bcadd($total, bcmul((string) $item->price_at_time, (string) $item->quantity, 4), 2);
-        }
-        return $total;
-    }
-
-    private function resolveCart(Request $request): ?Cart
-    {
-        $sessionId = $request->input('session_id') ?? $request->header('X-Session-Id');
-
-        if ($sessionId) {
-            return Cart::where('session_id', $sessionId)
-                ->where('expires_at', '>', now())
-                ->first();
-        }
-
-        return null;
-    }
-
-    private function resolveOrCreateCart(Request $request): Cart
-    {
-        $cart = $this->resolveCart($request);
-
-        if ($cart) {
-            return $cart;
-        }
-
-        $sessionId = $request->input('session_id') ?? $request->header('X-Session-Id')
-            ?? 'sess_' . Str::random(32);
-
-        return Cart::create([
-            'session_id' => $sessionId,
-            'expires_at' => now()->addDays(7),
+            'subtotal' => $this->cartService->calculateSubtotal($cart),
+            'discount' => (float) $cart->discount,
+            'total' => $this->cartService->calculateTotal($cart),
+            'coupon' => $cart->coupon_code ? [
+                'id' => $cart->coupon_id,
+                'code' => $cart->coupon_code,
+                'type' => $cart->coupon_type,
+                'discount' => (float) $cart->discount,
+            ] : null,
         ]);
     }
 }

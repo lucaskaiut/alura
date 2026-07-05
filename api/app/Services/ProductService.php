@@ -58,8 +58,26 @@ class ProductService
         }
 
         if (!empty($data['variants']) && $product->is_variable) {
-            foreach ($data['variants'] as $variantData) {
-                $product->variants()->create($variantData);
+            foreach ($data['variants'] as $i => $variantData) {
+                $attributeValueIds = $variantData['attribute_value_ids'] ?? [];
+                $variantMediaIds = $variantData['media_ids'] ?? [];
+                unset($variantData['attribute_value_ids'], $variantData['media_ids']);
+
+                $variantData['rank'] = $variantData['rank'] ?? $i;
+                $variant = $product->variants()->create($variantData);
+
+                if (!empty($attributeValueIds)) {
+                    $variant->attributeValues()->sync($attributeValueIds);
+                }
+
+                if (!empty($variantMediaIds)) {
+                    foreach ($variantMediaIds as $j => $mediaId) {
+                        $variant->attachMedia($mediaId, 'images', [
+                            'rank' => $j,
+                            'is_primary' => $j === 0,
+                        ]);
+                    }
+                }
             }
         }
 
@@ -79,7 +97,7 @@ class ProductService
 
         ProductChanged::dispatch($product, 'created');
 
-        return $product->load(['category', 'categories', 'variants', 'media']);
+        return $product->load(['category', 'categories', 'variants.attributeValues', 'variants.media', 'media']);
     }
 
     public function update(Product $product, array $data, ?int $userId): Product
@@ -88,6 +106,81 @@ class ProductService
 
         if (array_key_exists('categories', $data)) {
             $product->categories()->sync($data['categories']);
+        }
+
+        // Handle variant removal
+        if (!empty($data['removed_variant_ids'])) {
+            $product->variants()->whereIn('id', $data['removed_variant_ids'])->delete();
+        }
+
+        // Handle variant create/update/replace
+        if (array_key_exists('variants', $data) && $product->is_variable) {
+            $incomingIds = collect($data['variants'])
+                ->pluck('id')
+                ->filter()
+                ->toArray();
+
+            // Delete variants that are not in the incoming list
+            if (!empty($incomingIds)) {
+                $product->variants()->whereNotIn('id', $incomingIds)->delete();
+            } else {
+                // No valid IDs sent — replace all
+                $product->variants()->delete();
+            }
+
+            foreach ($data['variants'] as $i => $variantData) {
+                $attributeValueIds = $variantData['attribute_value_ids'] ?? [];
+                $variantMediaIds = $variantData['media_ids'] ?? [];
+                $variantRemovedMediaIds = $variantData['removed_media_ids'] ?? [];
+                unset($variantData['attribute_value_ids'], $variantData['media_ids'], $variantData['removed_media_ids']);
+
+                if (!empty($variantData['id'])) {
+                    $variant = $product->variants()->find($variantData['id']);
+                    if ($variant) {
+                        $variant->update($variantData);
+                        $variant->attributeValues()->sync($attributeValueIds);
+
+                        // Handle variant media
+                        if (!empty($variantRemovedMediaIds)) {
+                            foreach ($variantRemovedMediaIds as $mediaId) {
+                                $ref = $variant->mediaReferences()
+                                    ->where('media_id', $mediaId)
+                                    ->where('collection', 'images')
+                                    ->first();
+                                if ($ref) {
+                                    $ref->delete();
+                                    $this->mediaService->deleteIfOrphan(Media::find($mediaId));
+                                }
+                            }
+                        }
+                        if (!empty($variantMediaIds)) {
+                            foreach ($variantMediaIds as $j => $mediaId) {
+                                $exists = $variant->mediaReferences()
+                                    ->where('media_id', $mediaId)
+                                    ->where('collection', 'images')
+                                    ->exists();
+                                if (!$exists) {
+                                    $variant->attachMedia($mediaId, 'images', ['rank' => $j]);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    $variantData['rank'] = $variantData['rank'] ?? $i;
+                    $variant = $product->variants()->create($variantData);
+                    if (!empty($attributeValueIds)) {
+                        $variant->attributeValues()->sync($attributeValueIds);
+                    }
+                    if (!empty($variantMediaIds)) {
+                        foreach ($variantMediaIds as $j => $mediaId) {
+                            $variant->attachMedia($mediaId, 'images', [
+                                'rank' => $j,
+                                'is_primary' => $j === 0,
+                            ]);
+                        }
+                    }
+                }
+            }
         }
 
         if (!empty($data['removed_media_ids'])) {
@@ -135,7 +228,7 @@ class ProductService
 
         ProductChanged::dispatch($product, 'updated');
 
-        return $product->load(['brand', 'category', 'categories', 'variants', 'media']);
+        return $product->load(['brand', 'category', 'categories', 'variants.attributeValues', 'media']);
     }
 
     public function delete(Product $product, ?int $userId): void
@@ -178,7 +271,7 @@ class ProductService
             $products = collect();
             if (!empty($result['ids'])) {
                 $products = Product::whereIn('id', $result['ids'])
-                    ->with('media')
+                    ->with(['media', 'variants.attributeValues'])
                     ->get()
                     ->sortBy(fn($p) => array_search($p->id, $result['ids']));
             }
@@ -193,7 +286,7 @@ class ProductService
             ];
         }
 
-        $query = Product::where('status', true)->with('media');
+        $query = Product::where('status', true)->with(['media', 'variants.attributeValues']);
 
         if ($request->filled('ids')) {
             $ids = array_map('intval', explode(',', $request->input('ids')));

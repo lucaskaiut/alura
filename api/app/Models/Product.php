@@ -35,10 +35,13 @@ class Product extends Model
         'length',
         'price',
         'cost_price',
+        'stock',
         'meta_title',
         'meta_description',
         'status',
     ];
+
+    protected $appends = [];
 
     protected function casts(): array
     {
@@ -51,6 +54,7 @@ class Product extends Model
             'length' => 'decimal:2',
             'price' => 'decimal:2',
             'cost_price' => 'decimal:2',
+            'stock' => 'integer',
         ];
     }
 

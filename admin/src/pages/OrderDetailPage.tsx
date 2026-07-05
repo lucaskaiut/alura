@@ -72,6 +72,9 @@ interface OrderDetailData {
   discount: string;
   shipping_cost: string;
   total: string;
+  coupon_id: number | null;
+  coupon_code: string | null;
+  coupon_type: string | null;
   status: OrderDetailStatus | null;
   shipping_address: OrderDetailAddress | null;
   shipping_method: string | null;
@@ -345,8 +348,10 @@ export default function OrderDetailPage() {
               </div>
               {parseFloat(order.discount) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-text-muted">Desconto</span>
-                  <span className="text-danger-500">-{formatCurrency(order.discount)}</span>
+                  <span className="text-text-muted">
+                    Desconto{order.coupon_code ? ` (${order.coupon_code})` : ''}
+                  </span>
+                  <span className="text-success-600">-{formatCurrency(order.discount)}</span>
                 </div>
               )}
               <div className="flex justify-between">
@@ -576,8 +581,10 @@ export default function OrderDetailPage() {
               </div>
               {parseFloat(order.discount) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-text-muted">Desconto</span>
-                  <span className="text-danger-500">-{formatCurrency(order.discount)}</span>
+                  <span className="text-text-muted">
+                    Desconto{order.coupon_code ? ` (${order.coupon_code})` : ''}
+                  </span>
+                  <span className="text-success-600">-{formatCurrency(order.discount)}</span>
                 </div>
               )}
               <div className="flex justify-between">

@@ -19,12 +19,17 @@ class Cart extends Model
         'customer_id',
         'session_id',
         'expires_at',
+        'coupon_id',
+        'coupon_code',
+        'coupon_type',
+        'discount',
     ];
 
     protected function casts(): array
     {
         return [
             'expires_at' => 'datetime',
+            'discount' => 'decimal:2',
         ];
     }
 
@@ -36,5 +41,10 @@ class Cart extends Model
     public function items(): HasMany
     {
         return $this->hasMany(CartItem::class);
+    }
+
+    public function coupon(): BelongsTo
+    {
+        return $this->belongsTo(Coupon::class);
     }
 }

@@ -194,11 +194,11 @@ class ProductSearchService
         }
 
         $stockAvailable = false;
-        if ($product->stock()->exists()) {
-            $stockAvailable = $product->stock()->sum('quantity') > 0;
-        } elseif ($product->variants()->exists() && $product->variants()->has('stock')->exists()) {
+        if ((int) $product->stock > 0) {
+            $stockAvailable = true;
+        } elseif ($product->variants()->exists()) {
             foreach ($product->variants as $variant) {
-                if ($variant->stock()->sum('quantity') > 0) {
+                if ((int) $variant->stock > 0) {
                     $stockAvailable = true;
                     break;
                 }

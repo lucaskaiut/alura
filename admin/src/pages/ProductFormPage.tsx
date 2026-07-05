@@ -4,14 +4,42 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Upload, X, Save } from "lucide-react";
+import { ArrowLeft, Upload, X, Save, Pencil } from "lucide-react";
 import api from "../lib/api";
+import Modal from "../components/ui/Modal";
 
 // ─── Types ───
 interface ProductImage { id?: number; path: string; is_primary: boolean; rank: number; file?: File; preview?: string }
 interface Attribute { id: number; name: string; values: { id: number; value: string }[] }
 
-const variantSchema = z.object({ sku: z.string(), barcode: z.string().optional(), price: z.string(), stock: z.number().min(0), weight: z.string().optional() });
+interface VariantMediaItem {
+  id: number;
+  path: string;
+}
+
+interface VariantForm {
+  id?: number;
+  sku: string;
+  barcode?: string;
+  price: string;
+  stock: number;
+  weight?: string;
+  attribute_value_ids: number[];
+  _label?: string;
+  media?: VariantMediaItem[];
+}
+
+const variantSchema = z.object({
+  id: z.number().optional(),
+  sku: z.string(),
+  barcode: z.string().optional(),
+  price: z.string(),
+  stock: z.number().min(0),
+  weight: z.string().optional(),
+  attribute_value_ids: z.array(z.number()),
+  _label: z.string().optional(),
+  media: z.array(z.object({ id: z.number(), path: z.string() })).optional(),
+});
 const productSchema = z.object({
   name: z.string().min(1, "Nome obrigatório"),
   slug: z.string().min(1, "Slug obrigatório"),
@@ -49,6 +77,9 @@ export default function ProductFormPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deletedImageIds, setDeletedImageIds] = useState<number[]>([]);
+  const [editingVariant, setEditingVariant] = useState<number | null>(null);
+  const [variantMedia, setVariantMedia] = useState<{ file: File; preview: string }[]>([]);
+  const [variantRemovedMediaIds, setVariantRemovedMediaIds] = useState<number[]>([]);
 
   const { data: categoriesApi } = useQuery({ queryKey: ["categories"], queryFn: async () => (await api.get("/categories")).data });
   const categories = categoriesApi?.data ?? [];
@@ -67,9 +98,28 @@ export default function ProductFormPage() {
 
   // Compute default values from product data (for edit mode)
   const defaultValues = useMemo(() => {
-    const base = { name: "", slug: "", is_variable: "false", status: "true", selected_attributes: [], variants: [] };
+    const base: ProductForm & { variants: VariantForm[] } = {
+      name: "", slug: "", is_variable: "false", status: "true",
+      selected_attributes: [], variants: [],
+    };
     if (!isEditing || !productData) return base;
     const p = productData;
+    const variants: VariantForm[] = (p.variants || []).map((v: {
+      id: number; sku: string; barcode?: string; price: string; stock: number;
+      weight?: string; height?: string; width?: string; length?: string; rank: number;
+      attribute_values?: { id: number; value: string }[];
+      media?: { id: number; path: string }[];
+    }) => ({
+      id: v.id,
+      sku: v.sku ?? "",
+      barcode: v.barcode ?? "",
+      price: v.price ?? "",
+      stock: v.stock ?? 0,
+      weight: v.weight ?? "",
+      attribute_value_ids: (v.attribute_values || []).map((av) => av.id),
+      _label: (v.attribute_values || []).map((av) => av.value).join(" / ") || `Var ${v.rank + 1}`,
+      media: (v.media || []).map((m) => ({ id: m.id, path: m.path })),
+    }));
     return {
       name: p.name ?? "",
       slug: p.slug ?? "",
@@ -90,14 +140,13 @@ export default function ProductFormPage() {
       is_variable: p.is_variable ? "true" : "false",
       status: p.status ? "true" : "false",
       selected_attributes: [] as string[],
-      variants: [] as { sku: string; barcode?: string; price: string; stock: number; weight?: string }[],
+      variants,
     };
   }, [isEditing, productData]);
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<ProductForm>({
+  const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
     defaultValues,
-    values: defaultValues,
   });
 
   // Sync images when product loads (from media relationship)
@@ -114,19 +163,77 @@ export default function ProductFormPage() {
     }
   }, [isEditing, productData]);
 
+  // Sync form when product data loads (variants, etc.)
+  useEffect(() => {
+    if (!isEditing || !productData) return;
+    const p = productData;
+
+    const variants: VariantForm[] = (p.variants || []).map((v: {
+      id: number; sku: string; barcode?: string; price: string; stock: number;
+      weight?: string; height?: string; width?: string; length?: string; rank: number;
+      attribute_values?: { id: number; value: string; attribute?: { id: number; name: string } }[];
+      media?: { id: number; path: string }[];
+    }) => ({
+      id: v.id,
+      sku: v.sku ?? "",
+      barcode: v.barcode ?? "",
+      price: v.price ?? "",
+      stock: v.stock ?? 0,
+      weight: v.weight ?? "",
+      attribute_value_ids: (v.attribute_values || []).map((av) => av.id),
+      _label: (v.attribute_values || []).map((av) => av.value).join(" / ") || `Var ${v.rank + 1}`,
+      media: (v.media || []).map((m) => ({ id: m.id, path: m.path })),
+    }));
+
+    reset({
+      name: p.name ?? "",
+      slug: p.slug ?? "",
+      sku: p.sku ?? "",
+      barcode: p.barcode ?? "",
+      short_desc: p.short_desc ?? "",
+      full_desc: p.full_desc ?? "",
+      brand_id: p.brand_id ? String(p.brand_id) : "",
+      category_id: p.category_id ? String(p.category_id) : "",
+      price: p.price ?? "",
+      cost_price: p.cost_price ?? "",
+      weight: p.weight ?? "",
+      height: p.height ?? "",
+      width: p.width ?? "",
+      length: p.length ?? "",
+      meta_title: p.meta_title ?? "",
+      meta_description: p.meta_description ?? "",
+      is_variable: p.is_variable ? "true" : "false",
+      status: p.status ? "true" : "false",
+      selected_attributes: [],
+      variants,
+    });
+  }, [isEditing, productData, reset]);
+
   const isVariable = watch("is_variable") === "true";
   const selectedAttrs = watch("selected_attributes") ?? [];
 
   const pageTitle = isEditing && productData ? `Editar: ${productData.name}` : "Novo Produto";
 
   const generateVariants = () => {
-    const selected = attributes.filter((a) => selectedAttrs.includes(String(a.id)));
+    const currentSelected = watch("selected_attributes") ?? [];
+    const selected = attributes.filter((a) => currentSelected.includes(String(a.id)));
     if (selected.length === 0) return;
     const combos = cartesian(selected.map((a) => a.values));
     setValue("variants", combos.map((combo) => ({
       sku: "", barcode: "", price: watch("price") ?? "", stock: 0, weight: watch("weight") ?? "",
-      _label: combo.map((v: { value: string }) => v.value).join(" / "),
+      attribute_value_ids: combo.map((v) => v.id),
+      _label: combo.map((v) => v.value).join(" / "),
     })));
+  };
+
+  const toggleAttribute = (attrId: number) => {
+    const current = watch("selected_attributes") ?? [];
+    const strId = String(attrId);
+    if (current.includes(strId)) {
+      setValue("selected_attributes", current.filter((id) => id !== strId), { shouldDirty: true });
+    } else {
+      setValue("selected_attributes", [...current, strId], { shouldDirty: true });
+    }
   };
 
   const [imageError, setImageError] = useState<string | null>(null);
@@ -181,7 +288,7 @@ export default function ProductFormPage() {
         if (newPrimary) primaryMediaId = newPrimary.mediaId;
       }
 
-      // 3. Build JSON payload (no files!)
+      // 4. Build JSON payload (no files!)
       const payload: Record<string, unknown> = {
         name: data.name,
         slug: data.slug,
@@ -210,7 +317,22 @@ export default function ProductFormPage() {
         payload.removed_media_ids = deletedImageIds;
       }
 
-      // 4. Save product as JSON (small request)
+      // 5. Include variants data if product is variable
+      if (data.is_variable === "true" && data.variants && data.variants.length > 0) {
+        payload.variants = data.variants.map((v) => ({
+          id: v.id,
+          sku: v.sku || "",
+          barcode: v.barcode || null,
+          price: v.price || null,
+          weight: v.weight || null,
+          stock: v.stock || 0,
+          attribute_value_ids: v.attribute_value_ids || [],
+          media_ids: (v.media || []).map((m) => m.id),
+          removed_media_ids: v.removed_media_ids || [],
+        }));
+      }
+
+      // 6. Save product as JSON (small request)
       if (isEditing) {
         await api.put(`/products/${id}`, payload);
       } else {
@@ -386,9 +508,12 @@ export default function ProductFormPage() {
                 <label className="block text-sm font-medium text-text mb-2">Selecione os atributos</label>
                 <div className="flex flex-wrap gap-2 mb-3">
                   {attributes.map((attr) => (
-                    <label key={attr.id} className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-sm cursor-pointer transition-colors ${selectedAttrs.includes(String(attr.id)) ? "border-primary-500 bg-primary-50 text-primary-700" : "border-border hover:border-primary-300"}`}>
-                      <input type="checkbox" value={attr.id} {...register("selected_attributes")} className="sr-only" />{attr.name}
-                    </label>
+                    <button
+                      key={attr.id}
+                      type="button"
+                      onClick={() => toggleAttribute(attr.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-sm cursor-pointer transition-colors ${selectedAttrs.includes(String(attr.id)) ? "border-primary-500 bg-primary-50 text-primary-700" : "border-border hover:border-primary-300"}`}
+                    >{attr.name}</button>
                   ))}
                 </div>
                 <button type="button" onClick={generateVariants} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm transition-colors">Gerar Combinações</button>
@@ -396,16 +521,31 @@ export default function ProductFormPage() {
               {watch("variants") && watch("variants")!.length > 0 && (
                 <div className="border border-border rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-bg"><tr><th className="px-3 py-2 text-left font-medium text-text-muted">Variação</th><th className="px-3 py-2 text-left font-medium text-text-muted">SKU</th><th className="px-3 py-2 text-left font-medium text-text-muted">Preço</th><th className="px-3 py-2 text-left font-medium text-text-muted">Estoque</th></tr></thead>
+                    <thead className="bg-bg"><tr><th className="px-3 py-2 text-left font-medium text-text-muted">Variação</th><th className="px-3 py-2 text-left font-medium text-text-muted">SKU</th><th className="px-3 py-2 text-left font-medium text-text-muted">Preço</th><th className="px-3 py-2 text-left font-medium text-text-muted">Estoque</th><th className="px-3 py-2 text-left font-medium text-text-muted">Imagens</th><th className="px-3 py-2 text-left font-medium text-text-muted w-16"></th></tr></thead>
                     <tbody>
-                      {watch("variants")!.map((v, idx) => (
-                        <tr key={idx} className="border-t border-border">
-                          <td className="px-3 py-2">{(v as { _label?: string })._label || `Var ${idx + 1}`}</td>
-                          <td className="px-3 py-2"><input {...register(`variants.${idx}.sku`)} className="w-full px-2 py-1 border border-border rounded text-xs" /></td>
-                          <td className="px-3 py-2"><input {...register(`variants.${idx}.price`)} className="px-2 py-1 border border-border rounded text-xs w-24" /></td>
-                          <td className="px-3 py-2"><input type="number" {...register(`variants.${idx}.stock`, { valueAsNumber: true })} className="px-2 py-1 border border-border rounded text-xs w-20" /></td>
-                        </tr>
-                      ))}
+                      {watch("variants")!.map((v, idx) => {
+                        const variant = v as VariantForm;
+                        return (
+                          <tr key={idx} className="border-t border-border">
+                            <td className="px-3 py-2">{variant._label || `Var ${idx + 1}`}</td>
+                            <td className="px-3 py-2 text-xs text-text-muted">{variant.sku || "—"}</td>
+                            <td className="px-3 py-2 text-xs text-text-muted">{variant.price ? `R$ ${Number(variant.price).toFixed(2).replace(".", ",")}` : "—"}</td>
+                            <td className="px-3 py-2 text-xs text-text-muted">{variant.stock}</td>
+                            <td className="px-3 py-2 text-xs text-text-muted">{variant.media?.length || 0}</td>
+                            <td className="px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingVariant(idx);
+                                  setVariantMedia([]);
+                                  setVariantRemovedMediaIds([]);
+                                }}
+                                className="p-1.5 rounded-lg hover:bg-primary-50 text-text-muted hover:text-primary-600 transition-colors"
+                              ><Pencil size={14} /></button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -414,6 +554,111 @@ export default function ProductFormPage() {
           )}
         </div>
       )}
+
+      {/* Variant Edit Modal */}
+      <Modal
+        open={editingVariant !== null}
+        onClose={() => setEditingVariant(null)}
+        title={editingVariant !== null ? `Editar: ${(watch("variants")?.[editingVariant] as VariantForm)?._label || `Variação ${editingVariant + 1}`}` : ""}
+        size="lg"
+      >
+        {editingVariant !== null && (() => {
+          const idx = editingVariant;
+          const variant = watch(`variants.${idx}`) as VariantForm;
+          const existingMedia = variant.media || [];
+
+          const handleVariantImageAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const files = e.target.files;
+            if (!files) return;
+            const newImgs: { file: File; preview: string }[] = [];
+            for (let i = 0; i < files.length; i++) {
+              const f = files[i];
+              if (f.size > MAX_IMAGE_SIZE) continue;
+              newImgs.push({ file: f, preview: URL.createObjectURL(f) });
+            }
+            setVariantMedia((prev) => [...prev, ...newImgs]);
+          };
+
+          const handleSaveVariant = async () => {
+            // Upload new variant images
+            const uploadedIds: number[] = [];
+            for (const img of variantMedia) {
+              try {
+                const fd = new FormData();
+                fd.append("file", img.file);
+                const res = await api.post("/media", fd, { headers: { "Content-Type": "multipart/form-data" } });
+                uploadedIds.push(res.data.id as number);
+              } catch { /* skip */ }
+            }
+
+            const existingMediaIds = existingMedia
+              .filter((m) => !variantRemovedMediaIds.includes(m.id))
+              .map((m) => m.id);
+
+            const allMediaIds = [...existingMediaIds, ...uploadedIds];
+
+            setValue(`variants.${idx}.media`, allMediaIds.map((id, i) => ({ id, path: "" })));
+            setEditingVariant(null);
+            setVariantMedia([]);
+            setVariantRemovedMediaIds([]);
+          };
+
+          return (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-text mb-1">SKU</label>
+                <input {...register(`variants.${idx}.sku`)} className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text mb-1">Preço</label>
+                <input {...register(`variants.${idx}.price`)} className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text mb-1">Estoque</label>
+                <input type="number" {...register(`variants.${idx}.stock`, { valueAsNumber: true })} className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text mb-2">Imagens da Variação</label>
+                <div className="grid grid-cols-4 gap-3 mb-3">
+                  {existingMedia.filter((m) => !variantRemovedMediaIds.includes(m.id)).map((m) => (
+                    <div key={m.id} className="relative group border-2 border-border rounded-lg overflow-hidden aspect-square">
+                      <img src={`${API_URL}/storage/${m.path}`} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setVariantRemovedMediaIds((prev) => [...prev, m.id])}
+                        className="absolute top-1 right-1 p-1 bg-danger-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      ><X size={12} /></button>
+                    </div>
+                  ))}
+                  {variantMedia.map((img, i) => (
+                    <div key={i} className="relative group border-2 border-primary-500 rounded-lg overflow-hidden aspect-square">
+                      <img src={img.preview} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setVariantMedia((prev) => prev.filter((_, j) => j !== i))}
+                        className="absolute top-1 right-1 p-1 bg-danger-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      ><X size={12} /></button>
+                    </div>
+                  ))}
+                  <label className="border-2 border-dashed border-border rounded-lg aspect-square flex flex-col items-center justify-center gap-1 text-text-muted hover:border-primary-400 hover:text-primary-500 cursor-pointer transition-colors">
+                    <Upload size={20} /><span className="text-xs">Adicionar</span>
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleVariantImageAdd} />
+                  </label>
+                </div>
+                <p className="text-xs text-text-muted">Máx. 5 MB por imagem • JPEG, PNG, WebP</p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => {
+                  setEditingVariant(null);
+                  setVariantMedia([]);
+                  setVariantRemovedMediaIds([]);
+                }} className="px-4 py-2 text-sm font-medium text-text-muted hover:text-text transition-colors">Cancelar</button>
+                <button type="button" onClick={handleSaveVariant} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors">Salvar</button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
 
       {/* Tab: SEO */}
       {activeTab === "seo" && (

@@ -48,6 +48,12 @@ class PaymentSyncService
         $oldStatusId = $order->status_id;
         $order->update(['status_id' => $targetStatus->id]);
 
+        // Restore stock if payment failed or was refunded
+        $restoreStatuses = ['failed', 'refunded'];
+        if (in_array($payment->status, $restoreStatuses)) {
+            $this->restoreStock($order);
+        }
+
         $order->transactions()->create([
             'type' => 'payment',
             'data' => [
@@ -72,5 +78,22 @@ class PaymentSyncService
         }
 
         $this->syncOrderStatus($order);
+    }
+
+    private function restoreStock(Order $order): void
+    {
+        $order->load('items');
+
+        foreach ($order->items as $item) {
+            if ($item->variant_id) {
+                \App\Models\ProductVariant::where('id', $item->variant_id)->increment('stock', $item->quantity);
+            } elseif ($item->product_id) {
+                \App\Models\Product::where('id', $item->product_id)->increment('stock', $item->quantity);
+            }
+        }
+
+        Log::info("PaymentSync: stock restored for order #{$order->number}", [
+            'order_id' => $order->id,
+        ]);
     }
 }

@@ -9,28 +9,32 @@ use Illuminate\Http\Request;
 
 class AttributeValueController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, $attribute): JsonResponse
     {
-        $query = AttributeValue::query();
+        $attributeId = (int) $attribute;
 
-        if ($request->has('attribute_id')) {
-            $query->where('attribute_id', $request->attribute_id);
-        }
-
-        $values = $query->paginate(50);
+        $values = AttributeValue::where('attribute_id', $attributeId)
+            ->paginate(50);
 
         return response()->json($values);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, $attribute): JsonResponse
     {
+        $attributeId = (int) $attribute;
+
         $validated = $request->validate([
-            'attribute_id' => 'required|exists:attributes,id',
             'value' => 'required|string|max:255',
-            'slug' => 'required|string|max:255',
+            'slug' => 'nullable|string|max:255',
         ]);
 
-        $attributeValue = AttributeValue::create($validated);
+        $slug = $validated['slug'] ?? \Illuminate\Support\Str::slug($validated['value']);
+
+        $attributeValue = AttributeValue::create([
+            'attribute_id' => $attributeId,
+            'value' => $validated['value'],
+            'slug' => $slug,
+        ]);
 
         return response()->json($attributeValue, 201);
     }

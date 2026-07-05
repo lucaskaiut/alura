@@ -24,7 +24,9 @@ class ProductResolver implements RouterResolver
 
         if (empty($slug)) return null;
 
-        $product = Product::where('slug', $slug)->where('status', true)->with('media')->first();
+        $product = Product::where('slug', $slug)->where('status', true)
+            ->with(['media', 'variants.attributeValues.attribute', 'variants.media'])
+            ->first();
 
         if ($product) {
             return new RouteMatch(

@@ -35,22 +35,34 @@ export interface CartItem {
     id: number;
     sku: string;
     price: string;
+    label?: string;
+    media?: { id: number; path: string }[];
   };
+}
+
+export interface CartCoupon {
+  id: number;
+  code: string;
+  type: string;
+  discount: number;
 }
 
 export interface Cart {
   id: number | null;
   items: CartItem[];
+  subtotal: string;
+  discount: string;
   total: string;
+  coupon: CartCoupon | null;
 }
 
 export async function getCart(): Promise<Cart> {
   const sid = getSessionId();
-  if (!sid) return { id: null, items: [], total: '0' };
+  if (!sid) return { id: null, items: [], subtotal: '0', discount: '0', total: '0', coupon: null };
   try {
     return await fetchCart<Cart>(`/api/cart?session_id=${sid}`);
   } catch {
-    return { id: null, items: [], total: '0' };
+    return { id: null, items: [], subtotal: '0', discount: '0', total: '0', coupon: null };
   }
 }
 
@@ -79,4 +91,17 @@ export async function removeCartItem(itemId: number): Promise<Cart> {
 
 export async function clearCart(): Promise<void> {
   await fetchCart(`/api/cart?session_id=${getSessionId()}`, { method: 'DELETE' });
+}
+
+export async function applyCoupon(code: string): Promise<{ message?: string; coupon?: CartCoupon; discount?: number; subtotal?: string; total?: string }> {
+  return fetchCart(`/api/cart/coupon?session_id=${getSessionId()}`, {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
+export async function removeCoupon(): Promise<{ removed: boolean }> {
+  return fetchCart(`/api/cart/coupon?session_id=${getSessionId()}`, {
+    method: 'DELETE',
+  });
 }

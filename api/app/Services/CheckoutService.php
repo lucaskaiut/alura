@@ -7,6 +7,7 @@ use App\Core\Payment\DTOs\PaymentRequest;
 use App\Core\Shipping\ShippingCore;
 use App\Core\Shipping\DTOs\ShippingRequest;
 use App\Models\Cart;
+use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,7 @@ class CheckoutService
         private PaymentCore $payment,
         private ShippingCore $shipping,
         private PaymentSyncService $paymentSync,
+        private CouponService $couponService,
     ) {}
 
     public function getShippingOptions(Cart $cart, string $cep): array
@@ -77,8 +79,7 @@ class CheckoutService
             if (!$product || !$product->status) {
                 throw ValidationException::withMessages(['cart' => "{$product?->name}: produto indisponível."]);
             }
-            $stock = $item->variant ? $item->variant->stock()->first() : $product->stock()->first();
-            $available = $stock ? max(0, $stock->quantity - $stock->reserved) : 0;
+            $available = $item->variant ? (int) $item->variant->stock : (int) $product->stock;
             if ($available < $item->quantity) {
                 throw ValidationException::withMessages(['cart' => "{$product->name}: estoque insuficiente."]);
             }
@@ -90,16 +91,42 @@ class CheckoutService
             $subtotal = bcadd($subtotal, bcmul((string) $item->price_at_time, (string) $item->quantity, 4), 2);
         }
         $shippingCost = $data['shipping_cost'] ?? '0';
-        $discount = $data['discount'] ?? '0';
+
+        // Revalidate coupon if present
+        $discount = '0';
+        $couponId = null;
+        $couponCode = null;
+        $couponType = null;
+
+        if ($cart->coupon_id) {
+            try {
+                $coupon = Coupon::find($cart->coupon_id);
+                if ($coupon) {
+                    $this->couponService->checkCoupon($coupon, (float) $subtotal);
+                    $discountValue = $this->couponService->calculateDiscount($coupon, (float) $subtotal);
+                    $discount = (string) $discountValue;
+                    $couponId = $coupon->id;
+                    $couponCode = $coupon->code;
+                    $couponType = $coupon->type;
+                }
+            } catch (ValidationException $e) {
+                throw ValidationException::withMessages(['coupon' => 'Cupom inválido: ' . $e->getMessage()]);
+            }
+        }
+
         $total = bcsub(bcadd($subtotal, $shippingCost, 2), $discount, 2);
 
-        return DB::transaction(function () use ($cart, $data, $subtotal, $total, $shippingCost, $discount) {
+        return DB::transaction(function () use ($cart, $data, $subtotal, $total, $shippingCost, $discount, $couponId, $couponCode, $couponType) {
             // Reserve stock with lock
             foreach ($cart->items as $item) {
-                $stock = $item->variant
-                    ? $item->variant->stock()->lockForUpdate()->first()
-                    : $item->product->stock()->lockForUpdate()->first();
-                if ($stock) $stock->increment('reserved', $item->quantity);
+                $variant = $item->variant;
+                if ($variant) {
+                    $variant = ProductVariant::where('id', $variant->id)->lockForUpdate()->first();
+                    if ($variant) $variant->decrement('stock', $item->quantity);
+                } else {
+                    $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
+                    if ($product) $product->decrement('stock', $item->quantity);
+                }
             }
 
             $order = Order::create([
@@ -109,6 +136,9 @@ class CheckoutService
                 'discount' => $discount,
                 'shipping_cost' => $shippingCost,
                 'total' => $total,
+                'coupon_id' => $couponId,
+                'coupon_code' => $couponCode,
+                'coupon_type' => $couponType,
                 'shipping_address' => $data['address'] ?? null,
                 'shipping_method' => $data['shipping_method'] ?? null,
                 'status_id' => \App\Models\OrderStatus::where('payment_status', 'pending')->value('id')

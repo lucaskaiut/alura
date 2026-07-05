@@ -15,6 +15,7 @@ import OrdersPage from "./pages/OrdersPage";
 import OrderDetailPage from "./pages/OrderDetailPage";
 import OrderStatusesPage from "./pages/OrderStatusesPage";
 import CouponsPage from "./pages/CouponsPage";
+import DesignPage from "./pages/DesignPage";
 import PagesPage from "./pages/PagesPage";
 import PageFormPage from "./pages/PageFormPage";
 import MediaPage from "./pages/MediaPage";
@@ -42,6 +43,7 @@ export default function App() {
               <Route path="/orders/:id" element={<OrderDetailPage />} />
               <Route path="/order-statuses" element={<OrderStatusesPage />} />
               <Route path="/coupons" element={<CouponsPage />} />
+              <Route path="/design" element={<DesignPage />} />
               <Route path="/pages" element={<PagesPage />} />
               <Route path="/pages/new" element={<PageFormPage />} />
               <Route path="/pages/:id/edit" element={<PageFormPage />} />

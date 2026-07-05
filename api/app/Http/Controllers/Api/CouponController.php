@@ -4,13 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Coupon;
+use App\Services\CouponService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CouponController extends Controller
 {
+    public function __construct(private CouponService $couponService) {}
+
     public function index(): JsonResponse
     {
         $coupons = Coupon::paginate(20);
@@ -62,7 +64,6 @@ class CouponController extends Controller
         return response()->json(null, 204);
     }
 
-    /** Validate a coupon code for a given cart total */
     public function validate(Request $request): JsonResponse
     {
         $request->validate([
@@ -70,22 +71,14 @@ class CouponController extends Controller
             'cart_total' => 'required|numeric|min:0',
         ]);
 
-        $coupon = Coupon::where('code', $request->code)->first();
-
-        if (!$coupon) {
-            throw ValidationException::withMessages(['code' => 'Cupom não encontrado.']);
+        try {
+            $result = $this->couponService->validate($request->code, (float) $request->cart_total);
+            return response()->json(['valid' => true, ...$result]);
+        } catch (ValidationException $e) {
+            return response()->json(['valid' => false, 'message' => $e->getMessage()], 422);
         }
-
-        $this->checkCoupon($coupon, (float) $request->cart_total);
-
-        return response()->json([
-            'valid' => true,
-            'coupon' => $coupon->only(['id', 'code', 'type', 'value']),
-            'discount' => $this->calculateDiscount($coupon, (float) $request->cart_total),
-        ]);
     }
 
-    /** Apply coupon (increment used_count atomically) */
     public function apply(Request $request): JsonResponse
     {
         $request->validate([
@@ -93,59 +86,11 @@ class CouponController extends Controller
             'cart_total' => 'required|numeric|min:0',
         ]);
 
-        $coupon = DB::transaction(function () use ($request) {
-            $coupon = Coupon::where('code', $request->code)->lockForUpdate()->first();
-
-            if (!$coupon) {
-                throw ValidationException::withMessages(['code' => 'Cupom não encontrado.']);
-            }
-
-            $this->checkCoupon($coupon, (float) $request->cart_total);
-
-            $coupon->increment('used_count');
-
-            return $coupon;
-        });
-
-        return response()->json([
-            'applied' => true,
-            'coupon' => $coupon->only(['id', 'code', 'type', 'value']),
-            'discount' => $this->calculateDiscount($coupon, (float) $request->cart_total),
-        ]);
-    }
-
-    private function checkCoupon(Coupon $coupon, float $cartTotal): void
-    {
-        if (!$coupon->status) {
-            throw ValidationException::withMessages(['code' => 'Cupom inativo.']);
+        try {
+            $result = $this->couponService->apply($request->code, (float) $request->cart_total);
+            return response()->json(['applied' => true, ...$result]);
+        } catch (ValidationException $e) {
+            return response()->json(['applied' => false, 'message' => $e->getMessage()], 422);
         }
-
-        if ($coupon->starts_at && now()->lt($coupon->starts_at)) {
-            throw ValidationException::withMessages(['code' => 'Cupom ainda não disponível.']);
-        }
-
-        if ($coupon->expires_at && now()->gt($coupon->expires_at)) {
-            throw ValidationException::withMessages(['code' => 'Cupom expirado.']);
-        }
-
-        if ($coupon->max_uses && $coupon->used_count >= $coupon->max_uses) {
-            throw ValidationException::withMessages(['code' => 'Cupom esgotado.']);
-        }
-
-        if ($coupon->min_order_value && $cartTotal < $coupon->min_order_value) {
-            throw ValidationException::withMessages([
-                'code' => "Pedido mínimo de R$ " . number_format($coupon->min_order_value, 2, ',', '.'),
-            ]);
-        }
-    }
-
-    private function calculateDiscount(Coupon $coupon, float $cartTotal): float
-    {
-        return match ($coupon->type) {
-            'percentage' => round($cartTotal * ($coupon->value / 100), 2),
-            'fixed' => min((float) $coupon->value, $cartTotal),
-            'free_shipping' => 0, // Shipping discount handled separately
-            default => 0,
-        };
     }
 }

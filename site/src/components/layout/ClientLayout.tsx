@@ -7,15 +7,23 @@ import StoreNav from '@/components/layout/StoreNav';
 import Link from 'next/link';
 import { type ReactNode } from 'react';
 
-export default function ClientLayout({ children }: { children: ReactNode }) {
+interface MenuItem {
+  id: number;
+  title: string;
+  slug: string;
+  open_new_tab: boolean;
+  children: MenuItem[];
+}
+
+export default function ClientLayout({ children, serverMenu }: { children: ReactNode; serverMenu: MenuItem[] }) {
   return (
     <ToastProvider>
       <header className="sticky top-0 z-40 border-b bg-surface">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
-          <Link href="/" className="text-xl font-bold text-primary-700">Alura</Link>
+          <Link href="/" className="text-xl font-bold text-primary-600">Alura</Link>
           <div className="flex flex-1 items-center gap-2">
             <SearchBar />
-            <StoreNav />
+            <StoreNav serverMenu={serverMenu} />
           </div>
           <CartDrawerWrapper />
         </div>

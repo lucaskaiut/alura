@@ -18,6 +18,7 @@ import {
   GitBranch,
   Truck,
   LogOut,
+  Palette,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "../../contexts/AuthContext";
@@ -67,7 +68,10 @@ const navGroups: NavGroup[] = [
   },
   {
     title: "Configurações",
-    items: [{ label: "Ajustes", path: "/settings", icon: Settings }],
+    items: [
+      { label: "Design", path: "/design", icon: Palette },
+      { label: "Ajustes", path: "/settings", icon: Settings },
+    ],
   },
 ];
 
@@ -96,9 +100,9 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMob
   }, [location.pathname]);
 
   const sidebarContent = (
-    <div className={`flex flex-col h-full bg-primary-950 text-white ${collapsed ? "w-16" : "w-64"} transition-all duration-300`}>
+    <div className={`flex flex-col h-full bg-[#ebbad6] text-[#4a1028] ${collapsed ? "w-16" : "w-64"} transition-all duration-300`}>
       {/* Logo + collapse toggle */}
-      <div className="flex items-center h-16 px-4 border-b border-primary-800/50 shrink-0">
+      <div className="flex items-center h-16 px-4 border-b border-[#e87ab5] shrink-0">
         {!collapsed && (
           <span className="text-xl font-bold tracking-tight animate-fade-in">Alura</span>
         )}
@@ -108,7 +112,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMob
         {!collapsed && (
           <button
             onClick={onToggleCollapse}
-            className="ml-auto p-1.5 rounded-lg hover:bg-primary-800 transition-colors text-primary-300"
+            className="ml-auto p-1.5 rounded-lg hover:bg-[#f098c4] transition-colors text-[#6b2e4a]"
           >
             <ChevronLeft size={18} />
           </button>
@@ -119,7 +123,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMob
       <div className="flex justify-end px-2 py-1">
         <button
           onClick={onToggleCollapse}
-          className="p-1 rounded hover:bg-primary-800 transition-colors text-primary-300"
+          className="p-1 rounded hover:bg-[#f098c4] transition-colors text-[#6b2e4a]"
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
@@ -130,7 +134,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMob
         {navGroups.map((group) => (
           <div key={group.title}>
             {!collapsed && (
-              <p className="px-3 mb-2 text-xs font-semibold text-primary-400 uppercase tracking-wider">
+              <p className="px-3 mb-2 text-xs font-semibold text-[#6b2e4a]/70 uppercase tracking-wider">
                 {group.title}
               </p>
             )}
@@ -145,8 +149,8 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMob
                       onClick={() => isMobile && onMobileClose()}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium ${
                         isActive
-                          ? "bg-primary-600 text-white shadow-sm"
-                          : "text-primary-200 hover:bg-primary-800 hover:text-white"
+                          ? "bg-[#fdadf7] text-[#4a1028] shadow-sm"
+                          : "text-[#6b2e4a] hover:bg-[#f098c4] hover:text-[#4a1028]"
                       } ${collapsed ? "justify-center px-2" : ""}`}
                       title={collapsed ? item.label : undefined}
                     >
@@ -162,10 +166,10 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMob
       </nav>
 
       {/* Bottom section: Tenant info + Logout */}
-      <div className="border-t border-primary-800/50 p-3 shrink-0">
+      <div className="border-t border-[#e87ab5] p-3 shrink-0">
         {/* Tenant indicator */}
         {tenant && !collapsed && (
-          <div className="flex items-center gap-2 px-1 mb-2 text-xs text-primary-300">
+          <div className="flex items-center gap-2 px-1 mb-2 text-xs text-[#6b2e4a]">
             <Building2 size={14} />
             <span className="truncate">{tenant.name}</span>
             {tenants.length > 1 && (
@@ -177,7 +181,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMob
                   selectTenant(next);
                   window.location.reload();
                 }}
-                className="ml-auto text-primary-400 hover:text-white transition-colors"
+                className="ml-auto text-[#6b2e4a] hover:text-[#4a1028] transition-colors"
                 title="Trocar loja"
               >
                 <ChevronRight size={12} />
@@ -187,7 +191,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMob
         )}
         {tenant && collapsed && (
           <div className="flex justify-center mb-2">
-            <div className="w-6 h-6 rounded bg-primary-600 flex items-center justify-center text-xs font-semibold" title={tenant.name}>
+            <div className="w-6 h-6 rounded bg-white text-[#4a1028] flex items-center justify-center text-xs font-semibold" title={tenant.name}>
               {tenant.name.charAt(0).toUpperCase()}
             </div>
           </div>
@@ -196,7 +200,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMob
         {/* Logout button */}
         <button
           onClick={logout}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-primary-300 hover:bg-danger-500/10 hover:text-danger-400 transition-colors text-sm w-full ${collapsed ? "justify-center px-2" : ""}`}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[#6b2e4a] hover:bg-danger-500/10 hover:text-danger-500 transition-colors text-sm w-full ${collapsed ? "justify-center px-2" : ""}`}
           title="Sair"
         >
           <LogOut size={16} />

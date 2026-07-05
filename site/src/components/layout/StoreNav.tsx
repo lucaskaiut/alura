@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import { apiFetch } from "@/lib/client-fetch";
 
 interface MenuItem {
   id: number;
@@ -13,16 +12,10 @@ interface MenuItem {
   children: MenuItem[];
 }
 
-export default function StoreNav() {
-  const [menu, setMenu] = useState<MenuItem[]>([]);
+export default function StoreNav({ serverMenu }: { serverMenu: MenuItem[] }) {
   const [openId, setOpenId] = useState<number | null>(null);
 
-  useEffect(() => {
-    apiFetch<{ menu: MenuItem[] }>("/api/store/settings")
-      .then((d) => setMenu(d.menu ?? []))
-      .catch(() => {});
-  }, []);
-
+  const menu = serverMenu;
   if (!menu.length) return null;
 
   return (

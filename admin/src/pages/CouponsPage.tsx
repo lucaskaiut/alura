@@ -14,7 +14,7 @@ interface Coupon {
   code: string;
   type: "fixed" | "percentage" | "free_shipping";
   value: string;
-  min_order_amount: string | null;
+  min_order_value: string | null;
   max_uses: number | null;
   used_count: number;
   starts_at: string | null;
@@ -27,7 +27,7 @@ const couponSchema = z.object({
   code: z.string().min(1, "Código é obrigatório"),
   type: z.enum(["fixed", "percentage", "free_shipping"]),
   value: z.string(),
-  min_order_amount: z.string().nullable().optional(),
+  min_order_value: z.string().nullable().optional(),
   max_uses: z.number().int().nullable().optional(),
   starts_at: z.string().nullable().optional(),
   expires_at: z.string().nullable().optional(),
@@ -76,7 +76,7 @@ export default function CouponsPage() {
         code: editing.code,
         type: editing.type,
         value: editing.value,
-        min_order_amount: editing.min_order_amount,
+        min_order_value: editing.min_order_value,
         max_uses: editing.max_uses,
         starts_at: editing.starts_at,
         expires_at: editing.expires_at,
@@ -87,7 +87,7 @@ export default function CouponsPage() {
         code: "",
         type: "fixed",
         value: "0",
-        min_order_amount: null,
+        min_order_value: null,
         max_uses: null,
         starts_at: null,
         expires_at: null,
@@ -297,7 +297,7 @@ export default function CouponsPage() {
               <label className="block text-sm font-medium text-text mb-1">Pedido mínimo</label>
                 <input
                   type="text"
-                  {...register("min_order_amount")}
+                  {...register("min_order_value")}
                   className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors"
                   placeholder="Opcional"
                 />

@@ -8,7 +8,7 @@ import { getCart, updateCartItem, removeCartItem, type Cart, type CartItem } fro
 import { getMediaUrl } from '@/lib/api';
 
 export default function CarrinhoPage() {
-  const [cart, setCart] = useState<Cart>({ id: null, items: [], total: '0' });
+  const [cart, setCart] = useState<Cart>({ id: null, items: [], subtotal: '0', discount: '0', total: '0', coupon: null });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

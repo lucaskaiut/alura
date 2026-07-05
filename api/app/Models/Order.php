@@ -18,6 +18,9 @@ class Order extends Model
         'shipping_cost',
         'total',
         'status_id',
+        'coupon_id',
+        'coupon_code',
+        'coupon_type',
         'shipping_address',
         'shipping_method',
         'shipping_gateway',
@@ -58,5 +61,10 @@ class Order extends Model
     public function payments(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function coupon(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Coupon::class);
     }
 }
